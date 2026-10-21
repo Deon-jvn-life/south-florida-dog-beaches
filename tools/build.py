@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Build the South Florida dog beaches and off-leash dog parks guide into site/. Run: python3 tools/build.py"""
+import json,os,sys
+HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE); sys.path.insert(0,HERE)
+from sitelib import Site,CSS,D,esc,a
+BASE="https://south-florida-dog-beaches.vercel.app"
+P=json.load(open(os.path.join(HERE,'places.json')))
+BCL="https://www.broward.org/parks/thingstodo/dogparks"
+CITYPARKS=[("Dog Park at Emerald Hills Park (City of Hollywood)","3901 N. 30th Terrace, Hollywood 33021","954-921-3404"),("Dog Park at John Williams Park (City of Hollywood)","6101 Sheridan St., Hollywood 33021","954-921-3404"),("Dog Park at Oakridge Park (City of Hollywood)","5200 S.W. 35th Ave., Hollywood 33021","954-921-3404"),("Dog Park at Poinciana Park (City of Hollywood)","1301 S. 21st Ave., Hollywood 33020","954-921-3404"),("Dr. Steven G. Paul Dog Park (City of Coral Springs)","2575 Sportsplex Dr., Coral Springs 33067","954-346-4428"),("Gary B. Jones Park for People and Pups (City of Tamarac)","8101 Southgate Blvd., Tamarac 33321","954-597-3620"),("Happy Tails Dog Park (City of Plantation)","6500 S.W. 16th St., Plantation 33317","954-452-2510"),("Joseph Scavo Park (City of Hallandale Beach)","900 Three Islands Blvd., Hallandale Beach 33009","954-457-1452"),("Oakland Bark Park (City of Oakland Park)","971 N.W. 38th St., Oakland Park 33309","954-630-4352"),("Precious Paws Dog Park at Patrick J. Meli Park (City of Dania Beach)","2901 S.W. 52nd St., Dania Beach 33312","954-985-4400"),("Windmill Park (City of Coconut Creek)","700 Lyons Rd., Coconut Creek 33063","954-545-6670"),("Woodville Dog Park (City of North Lauderdale)","1500 S.W. 83rd Ave., North Lauderdale 33068","954-724-7061")]
+CO={'miami-dade':'Miami-Dade','broward':'Broward','palm-beach':'Palm Beach'}
+NAV=[('index.html','Home'),('dog-beaches/index.html','Dog beaches'),('dog-parks/index.html','Off-leash dog parks')]+[(f'counties/{k}/index.html',v) for k,v in CO.items()]+[('are-dogs-allowed-on-beaches/index.html','Are dogs allowed on beaches?')]
+FOOT='Unofficial, independent guide. Not affiliated with any city, county or park agency. Hours, fees and rules are copied from the official city and county pages linked on each entry; they change, especially seasonally, so check the official page or call before you go.'
+s=Site(ROOT,BASE,"South Florida Dog Beaches",NAV,FOOT,CSS)
+def srcs(p): return ' <span class="src">['+', '.join(a(u,'official page' if i==0 else f'source {i+1}') for i,u in enumerate(p['src']))+']</span>'
+def row(p,r):
+    f=f'<br><span class="tag mix">Check</span> <span class="src">{esc(p["flag"])}</span>' if p['flag'] else ''
+    return f'<tr><td><strong><a href="{r}places/{p["id"]}/index.html">{esc(p["name"])}</a></strong><br><span class="src">{p["county"]}</span></td><td>{esc(p["address"])}</td><td>{esc(p["hours"])}</td><td>{esc(p["fee"])}</td><td>{srcs(p)}{f}</td></tr>'
+def table(ps,r):
+    return '<input id="q" placeholder="Filter by city or name" oninput="var v=this.value.toLowerCase();document.querySelectorAll(\'table tr\').forEach(function(x){if(x.querySelector(\'td\'))x.style.display=x.textContent.toLowerCase().indexOf(v)>-1?\'\':\'none\'})"><div class="wrap"><table><tr><th>Place</th><th>Location</th><th>Days and hours</th><th>Permit, fee, parking</th><th>Source and notes</th></tr>'+''.join(row(p,r) for p in ps)+'</table></div>'
+B=[p for p in P if p['kind']=='beach']; K=[p for p in P if p['kind']=='park']; FL=[p for p in P if p['flag']]
+CONF='<div class="card conf"><strong>Conflicts and gaps found on '+D+'</strong><ul>'+''.join(f'<li><strong>{esc(p["name"])}:</strong> {esc(p["flag"])}</li>' for p in FL)+'</ul></div>'
+b=f'''<h1>South Florida dog beaches and off-leash dog parks</h1><p>{len(B)} dog beaches and {len(K)} off-leash dog parks in Miami-Dade, Broward and Palm Beach counties, each with days, hours (including seasonal hours), permits or fees, and rules from the official city or county page.</p>
+<div class="card note"><strong>Most South Florida beaches do not allow dogs.</strong> Use only the designated dog beaches below. {a("are-dogs-allowed-on-beaches/index.html","Read the rules")}.</div>
+<h2>Dog beaches</h2>{table(B,"")}
+<h2>Seasonal and day-limited at a glance</h2><ul><li>Miami Beach Bark Beach: Friday to Sunday only; 3 p.m. to 7 p.m. March to October, 1:30 p.m. to 5:30 p.m. November to February.</li><li>Boca Raton Bark Beach: 3 p.m. to sunset in standard time, 5 p.m. to sunset in daylight saving time; permit required.</li><li>Broward County Barkham and Woofing Waters: closed third week of January through second week of April.</li></ul>
+<h2>Off-leash dog parks</h2><p>See {a("dog-parks/index.html","all off-leash dog parks")} or browse by county: {", ".join(a(f"counties/{k}/index.html",v) for k,v in CO.items())}.</p>{CONF}'''
+s.page('index.html',"South Florida dog beaches and off-leash dog parks: hours, permits, rules","Dog beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach with seasonal hours, days, permits, fees and rules from official pages.",b)
+s.page('dog-beaches/index.html',"Dog beaches in Miami-Dade, Broward and Palm Beach","Every designated dog beach in South Florida with days, seasonal hours, permits and rules.",f'<h1>Dog beaches in South Florida</h1><p>{len(B)} designated dog beaches.</p>'+table(B,"../")+CONF)
+s.page('dog-parks/index.html',"Off-leash dog parks in South Florida","Off-leash dog parks run by Miami-Dade, Broward, Palm Beach counties and cities, with hours, maintenance closures, fees and rules.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+table(K,"../")+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap"><table><tr><th>Park</th><th>Address</th><th>Phone</th></tr>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</table></div>')
+for k,v in CO.items():
+    ps=[p for p in P if p['county']==v]
+    s.page(f'counties/{k}/index.html',f"Dog beaches and dog parks in {v} County",f"Dog beaches and off-leash dog parks in {v} County with hours, fees and rules.",f'<h1>Dog beaches and dog parks in {v} County</h1><h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'],"../../")+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park'],"../../"))
+for p in P:
+    rl=''.join(f'<li>{esc(x)}</li>' for x in p['rules']) or '<li>Not stated on the official page we could read.</li>'
+    f=f'<div class="card conf">{esc(p["flag"])}</div>' if p['flag'] else ''
+    ph=f'<p><strong>Phone:</strong> {esc(p["phone"])}</p>' if p['phone'] else ''
+    b=f'''<h1>{esc(p["name"])}</h1><div class="card"><p><strong>Type:</strong> {"Dog beach" if p["kind"]=="beach" else "Off-leash dog park"}, {p["county"]} County</p><p><strong>Location:</strong> {esc(p["address"])}</p><p><strong>Days and hours:</strong> {esc(p["hours"])}</p><p><strong>Permit, fee, parking:</strong> {esc(p["fee"])}</p>{ph}<p>{srcs(p)}</p></div>{f}<h2>Rules</h2><ul>{rl}</ul><p>{a("../../index.html","All dog beaches and parks")}</p>'''
+    s.page(f'places/{p["id"]}/index.html',f"{p['name']}: hours, rules, permit",f"{p['name']} in {p['county']} County: hours, permit or fee, and rules from the official page.",b)
+b=f'''<h1>Are dogs allowed on most South Florida beaches?</h1><div class="card"><p><strong>No.</strong> On most public beaches in Miami-Dade, Broward and Palm Beach, dogs (other than service animals) are not allowed. Use a designated dog beach.</p></div>
+<ul><li>Miami Beach: dogs are prohibited from city beaches except the designated Bark Beach at 80 to 81 Streets <span class="src">[{a(P[0]["src"][0])}]</span>.</li>
+<li>Palm Beach County: dogs are not allowed on county beaches, with the exception of ADA service animals; Jupiter Dog Beach is the county's off-leash beach stretch <span class="src">[{a("https://discover.pbc.gov/parks/General/Dogs.aspx")}, {a("https://discover.pbc.gov/parks/Pages/Jupiter-Dog-Beach.aspx","source 2")}]</span>.</li>
+<li>Fort Lauderdale: pets are not allowed on beaches or in any body of water unless permitted by law, except at Canine Beach <span class="src">[{a("https://www.parks.fortlauderdale.gov/parks/dog-friendly-places")}]</span>.</li>
+<li>Jupiter calls its beach "one of the few remaining dog-friendly beaches in the state of Florida" <span class="src">[{a("https://jupiter.fl.us/437/Dogs-on-the-Beach")}]</span>.</li></ul>
+<p>Where dogs are allowed, rules usually include a leash to and from the sand, a current rabies tag or vaccination proof, a limit of two or three dogs per person, and picking up waste. See the {a("../dog-beaches/index.html","dog beach list")}.</p>'''
+s.page('are-dogs-allowed-on-beaches/index.html',"Are dogs allowed on beaches in South Florida?","Short answer with official sources: dogs are not allowed on most Miami-Dade, Broward and Palm Beach beaches; here is where they are.",b)
+s.finish(); print(len(s.pages),'pages',len(B),'beaches',len(K),'parks',len(CITYPARKS),'listed city parks')
