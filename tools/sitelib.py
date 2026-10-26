@@ -76,7 +76,7 @@ class Site:
         canon=s.base+'/'+path.replace('index.html','')
         crumbs=_crumbs(path,title,s.nav,crumbs)
         nav=''.join(f'<a href="{esc(clean_url(p))}">{esc(t)}</a>' for p,t in s.nav)
-        ver=''.join(f'<meta name="{esc(n)}" content="{esc(v)}">' for n,v in s.verification.items() if v)
+        ver=''.join(f'<meta name="{esc(n)}" content="{esc(v)}" />' for n,v in s.verification.items() if v)
         robots='<meta name="robots" content="noindex">' if kind=='error' else ''
         og_type='article' if kind=='content' else 'website'
         article=''
