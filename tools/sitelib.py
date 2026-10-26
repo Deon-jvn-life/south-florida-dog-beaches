@@ -1,7 +1,7 @@
 """Shared helpers: page shell, robots.txt, sitemap.xml, checks. Copied per site so each folder is self-contained."""
 import os,html as H,shutil,re,sys,json,struct,zlib
-D="21 Oct 2026"
-ISO="2026-10-21"
+D="26 Oct 2026"
+ISO="2026-10-26"
 DISCLAIMER="For general information only. This independent site is not affiliated with any city, county or park authority. Rules, hours and access can change and may contain errors; always check the official park page and posted signs before you go. You are responsible for your dog and following local rules, and we accept no liability for decisions made using this site."
 RELATED=(
     ("https://us-passport-walkin-finder.vercel.app/","US Passport Walk-in Finder"),
