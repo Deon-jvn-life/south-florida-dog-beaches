@@ -6,4 +6,4 @@ Unofficial, independent guide to dog beaches and off-leash dog parks in Miami-Da
 - `tools/build.py`: generator, writes `site/`.
 - BASE: https://south-florida-dog-beaches.vercel.app
 
-Last checked: 21 Oct 2026.
+Place listings last checked: 21 Oct 2026. License and rabies page last checked: 26 Oct 2026.

@@ -35,12 +35,12 @@ def _breadcrumb(base,crumbs):
     return {"@type":"BreadcrumbList","itemListElement":[
         {"@type":"ListItem","position":i,"name":name,"item":_abs(base,path)}
         for i,(path,name) in enumerate(crumbs,1)]}
-def _article(base,canon,title,desc,brand):
+def _article(base,canon,title,desc,brand,iso):
     pub={"@type":"Organization","name":brand,"url":base+"/","logo":{"@type":"ImageObject","url":base+"/apple-touch-icon.png"}}
-    return {"@type":"Article","headline":title,"description":desc,"datePublished":ISO,"dateModified":ISO,
+    return {"@type":"Article","headline":title,"description":desc,"datePublished":iso,"dateModified":iso,
         "inLanguage":"en-US","mainEntityOfPage":canon,"url":canon,"image":base+"/og.png",
         "author":{"@type":"Organization","name":brand,"url":base+"/"},"publisher":pub}
-def _graph(s,path,title,desc,canon,crumbs,faq,kind):
+def _graph(s,path,title,desc,canon,crumbs,faq,kind,iso):
     g=[_breadcrumb(s.base,crumbs)]
     if kind=='home':
         g=[
@@ -51,7 +51,7 @@ def _graph(s,path,title,desc,canon,crumbs,faq,kind):
             g[0],
         ]
     elif kind=='content':
-        g.append(_article(s.base,canon,title,desc,s.brand))
+        g.append(_article(s.base,canon,title,desc,s.brand,iso))
         if faq:
             g.append({"@type":"FAQPage","mainEntity":[
                 {"@type":"Question","name":q,"acceptedAnswer":{"@type":"Answer","text":ans}} for q,ans in faq]})
@@ -69,8 +69,9 @@ class Site:
         s.verification=verification or {}; s.pages=[]; s.warnings=0
         if os.path.exists(s.out): shutil.rmtree(s.out)
         os.makedirs(s.out)
-    def page(s,path,title,desc,body,faq=None,crumbs=None,listed=True):
+    def page(s,path,title,desc,body,faq=None,crumbs=None,listed=True,checked=None):
         _warn(s,path,title,desc)
+        show,iso=checked if checked else (D,ISO)
         kind='home' if path=='index.html' else 'error' if path=='404.html' else 'content'
         canon=s.base+'/'+path.replace('index.html','')
         crumbs=_crumbs(path,title,s.nav,crumbs)
@@ -80,8 +81,8 @@ class Site:
         og_type='article' if kind=='content' else 'website'
         article=''
         if kind=='content':
-            article=f'<meta property="article:published_time" content="{ISO}"><meta property="article:modified_time" content="{ISO}">'
-        ld=json.dumps(_graph(s,path,title,desc,canon,crumbs,faq,kind),ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')
+            article=f'<meta property="article:published_time" content="{iso}"><meta property="article:modified_time" content="{iso}">'
+        ld=json.dumps(_graph(s,path,title,desc,canon,crumbs,faq,kind,iso),ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')
         img=s.base+'/og.png'
         rel=''.join(f'<a href="{esc(u)}" rel="noopener">{esc(t)}</a>' for u,t in RELATED)
         if len(RELATED)==2: rel=rel.replace('</a><a ','</a> and <a ',1)
@@ -89,16 +90,16 @@ class Site:
 <header><a class="brand" href="/">{esc(s.brand)}</a><nav>{nav}</nav></header>
 <div class="unofficial">Unofficial and independent guide. Not a government website.</div>
 <p class="top-disclaimer">{esc(DISCLAIMER)}</p>
-<main><p class="checked">Last checked: {D}</p>
+<main><p class="checked">Last checked: {show}</p>
 {body}
-</main><footer><p>{s.footer}</p><p>{esc(DISCLAIMER)}</p><p><strong>Related guides:</strong> {rel}.</p><p><a href="/disclaimer/">Disclaimer</a></p><p>Last checked: {D}.</p></footer></body></html>'''
+</main><footer><p>{s.footer}</p><p>{esc(DISCLAIMER)}</p><p><strong>Related guides:</strong> {rel}.</p><p><a href="/disclaimer/">Disclaimer</a></p><p>Last checked: {show}.</p></footer></body></html>'''
         for bad in ('\u2014','\u2013','&mdash;','&ndash;'): assert bad not in h,(path,bad)
         p=os.path.join(s.out,path); os.makedirs(os.path.dirname(p),exist_ok=True); open(p,'w').write(h)
-        if listed: s.pages.append(path)
+        if listed: s.pages.append((path,iso))
     def finish(s):
         bots=['GPTBot','OAI-SearchBot','ChatGPT-User','PerplexityBot','Bingbot','Googlebot','ClaudeBot','*']
         open(os.path.join(s.out,'robots.txt'),'w').write(''.join(f'User-agent: {b}\nAllow: /\n\n' for b in bots)+f'Sitemap: {s.base}/sitemap.xml\n')
-        open(os.path.join(s.out,'sitemap.xml'),'w').write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join(f'<url><loc>{s.base}/{p.replace("index.html","")}</loc><lastmod>{ISO}</lastmod></url>\n' for p in sorted(s.pages))+'</urlset>\n')
+        open(os.path.join(s.out,'sitemap.xml'),'w').write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join(f'<url><loc>{s.base}/{p.replace("index.html","")}</loc><lastmod>{mod}</lastmod></url>\n' for p,mod in sorted(s.pages))+'</urlset>\n')
         open(os.path.join(s.out,'favicon.svg'),'w').write(FAVICON)
         _write_png(os.path.join(s.out,'apple-touch-icon.png'),_apple_icon())
         _write_png(os.path.join(s.out,'og.png'),_og_image())
