@@ -2,7 +2,7 @@
 """Build the South Florida dog beaches and off-leash dog parks guide into site/. Run: python3 tools/build.py"""
 import json,os,sys
 HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE); sys.path.insert(0,HERE)
-from sitelib import Site,CSS,D,DISCLAIMER,esc,a,clean_url
+from sitelib import Site,CSS,D,DISCLAIMER,esc,a,clean_url,slug
 BASE="https://south-florida-dog-beaches.vercel.app"
 # Optional search-engine verification. Leave a value empty to omit that meta tag.
 VERIFY={"google-site-verification":"XA7XgB_UwrIRvQyNVsnWpSyTyaU6e3-v4g4RBw8RAVI","msvalidate.01":""}
@@ -10,26 +10,97 @@ P=json.load(open(os.path.join(HERE,'places.json')))
 BCL="https://www.broward.org/parks/thingstodo/dogparks"
 CITYPARKS=[("Dog Park at Emerald Hills Park (City of Hollywood)","3901 N. 30th Terrace, Hollywood 33021","954-921-3404"),("Dog Park at John Williams Park (City of Hollywood)","6101 Sheridan St., Hollywood 33021","954-921-3404"),("Dog Park at Oakridge Park (City of Hollywood)","5200 S.W. 35th Ave., Hollywood 33021","954-921-3404"),("Dog Park at Poinciana Park (City of Hollywood)","1301 S. 21st Ave., Hollywood 33020","954-921-3404"),("Dr. Steven G. Paul Dog Park (City of Coral Springs)","2575 Sportsplex Dr., Coral Springs 33067","954-346-4428"),("Gary B. Jones Park for People and Pups (City of Tamarac)","8101 Southgate Blvd., Tamarac 33321","954-597-3620"),("Happy Tails Dog Park (City of Plantation)","6500 S.W. 16th St., Plantation 33317","954-452-2510"),("Joseph Scavo Park (City of Hallandale Beach)","900 Three Islands Blvd., Hallandale Beach 33009","954-457-1452"),("Oakland Bark Park (City of Oakland Park)","971 N.W. 38th St., Oakland Park 33309","954-630-4352"),("Precious Paws Dog Park at Patrick J. Meli Park (City of Dania Beach)","2901 S.W. 52nd St., Dania Beach 33312","954-985-4400"),("Windmill Park (City of Coconut Creek)","700 Lyons Rd., Coconut Creek 33063","954-545-6670"),("Woodville Dog Park (City of North Lauderdale)","1500 S.W. 83rd Ave., North Lauderdale 33068","954-724-7061")]
 CO={'miami-dade':'Miami-Dade','broward':'Broward','palm-beach':'Palm Beach'}
-NAV=[('index.html','Home'),('dog-beaches/index.html','Dog beaches'),('dog-parks/index.html','Off-leash dog parks')]+[(f'counties/{k}/index.html',v) for k,v in CO.items()]+[('are-dogs-allowed-on-beaches/index.html','Are dogs allowed on beaches?'),('license-and-rabies/index.html','License and rabies')]
+CO_SLUG={'Miami-Dade':'miami-dade','Broward':'broward','Palm Beach':'palm-beach'}
+SHORT={
+ 'miami-beach-bark-beach':'North Beach Bark Beach','haulover-dog-beach':'Haulover Dog Beach','hollywood-dog-beach':'Hollywood Dog Beach',
+ 'fort-lauderdale-canine-beach':'Canine Beach','pompano-wags-and-waves':'Wags and Waves','boca-bark-beach':'Boca Bark Beach','jupiter-dog-beach':'Jupiter Dog Beach',
+ 'haulover-bark-park':'Haulover Bark Park','md-west-kendall':'West Kendall dog park','md-amelia-earhart':'Amelia Earhart dog park',
+ 'md-east-greynolds':'East Greynolds dog park','md-tropical':'Tropical Park dog park','md-lago-mar':'Lago Mar dog run',
+ 'barkham-markham':'Barkham at Markham','woofing-waters':'Woofing Waters','ftl-holiday-park':'Holiday Park dog park',
+ 'ftl-riverside':'Riverside dog park','ftl-snyder':'Snyder Park bark park','pompano-canine-corner':'Canine Corner',
+ 'pbc-canine-cove':'Canine Cove','pbc-lake-ida':'Lake Ida dog park','pbc-lake-woof':'Lake Woof','pbc-pooch-pines':'Pooch Pines'}
+def county_items(name):
+    slugc=CO_SLUG[name]
+    rows=[(f'counties/{slugc}/index.html',name+' County')]
+    rows+=[(f'places/{p["id"]}/index.html',SHORT[p["id"]]) for p in P if p['kind']=='park' and p['county']==name]
+    return rows
+GROUPS=[
+ ('Dog beaches',[('dog-beaches/index.html','All dog beaches')]+[(f'places/{p["id"]}/index.html',SHORT[p["id"]]) for p in P if p['kind']=='beach']),
+ ('Miami-Dade',county_items('Miami-Dade')),
+ ('Broward',county_items('Broward')),
+ ('Palm Beach',county_items('Palm Beach')),
+ ('Rules',[
+    ('are-dogs-allowed-on-beaches/index.html','Are dogs allowed on beaches?'),
+    ('license-and-rabies/index.html','License and rabies'),
+    ('dog-parks/index.html','All off-leash parks'),
+    ('disclaimer/index.html','Disclaimer'),
+    ('find/index.html','All pages')])]
 FOOT='Unofficial, independent guide. Not affiliated with any city, county or park agency. Hours, fees and rules are copied from the official city and county pages linked on each entry; they change, especially seasonally, so check the official page or call before you go.'
-s=Site(ROOT,BASE,"South Florida Dog Beaches",NAV,FOOT,CSS,VERIFY)
+s=Site(ROOT,BASE,"South Florida Dog Beaches",GROUPS,FOOT,CSS,VERIFY)
+s.parents={
+ 'are-dogs-allowed-on-beaches/index.html':('/#topic-rules','Rules'),
+ 'license-and-rabies/index.html':('/#topic-rules','Rules'),
+ 'dog-parks/index.html':('/#topic-rules','Rules'),
+ 'disclaimer/index.html':('/#topic-rules','Rules'),
+ 'find/index.html':('/#topic-rules','Rules')}
+for p in P:
+    path=f'places/{p["id"]}/index.html'
+    if p['kind']=='beach': s.parents[path]=('/dog-beaches/','Dog beaches')
+    else: s.parents[path]=(f'/counties/{CO_SLUG[p["county"]]}/',p['county'])
+s.sequences=[
+ ('Dog beaches from south to north',[f'places/{p["id"]}/index.html' for p in P if p['kind']=='beach']),
+ ('Miami-Dade off-leash parks',[f'places/{p["id"]}/index.html' for p in P if p['kind']=='park' and p['county']=='Miami-Dade']),
+ ('Broward off-leash parks',[f'places/{p["id"]}/index.html' for p in P if p['kind']=='park' and p['county']=='Broward']),
+ ('Palm Beach off-leash parks',[f'places/{p["id"]}/index.html' for p in P if p['kind']=='park' and p['county']=='Palm Beach']),
+ ('Counties from south to north',['counties/miami-dade/index.html','counties/broward/index.html','counties/palm-beach/index.html'])]
+def _cpath(p): return f'counties/{CO_SLUG[p["county"]]}/index.html'
+s.read_next={}
+for p in P:
+    path=f'places/{p["id"]}/index.html'
+    s.read_next[path]=['dog-beaches/index.html',_cpath(p),'license-and-rabies/index.html'] if p['kind']=='beach' else ['dog-parks/index.html',_cpath(p),'license-and-rabies/index.html']
+s.read_next.update({
+ 'index.html':['are-dogs-allowed-on-beaches/index.html','dog-beaches/index.html','license-and-rabies/index.html'],
+ 'dog-beaches/index.html':['are-dogs-allowed-on-beaches/index.html','license-and-rabies/index.html','dog-parks/index.html'],
+ 'dog-parks/index.html':['dog-beaches/index.html','license-and-rabies/index.html','are-dogs-allowed-on-beaches/index.html'],
+ 'counties/miami-dade/index.html':['dog-beaches/index.html','dog-parks/index.html','counties/broward/index.html'],
+ 'counties/broward/index.html':['dog-beaches/index.html','dog-parks/index.html','counties/palm-beach/index.html'],
+ 'counties/palm-beach/index.html':['dog-beaches/index.html','dog-parks/index.html','license-and-rabies/index.html'],
+ 'are-dogs-allowed-on-beaches/index.html':['dog-beaches/index.html','license-and-rabies/index.html','disclaimer/index.html'],
+ 'license-and-rabies/index.html':['are-dogs-allowed-on-beaches/index.html','dog-beaches/index.html','disclaimer/index.html'],
+ 'disclaimer/index.html':['are-dogs-allowed-on-beaches/index.html','license-and-rabies/index.html','find/index.html'],
+ 'find/index.html':['dog-beaches/index.html','dog-parks/index.html','are-dogs-allowed-on-beaches/index.html'],
+ '404.html':['dog-beaches/index.html','dog-parks/index.html','find/index.html']})
+s.aliases={
+ 'index.html':'home start dog beach park','dog-beaches/index.html':'beach beaches ocean shore permit hours',
+ 'dog-parks/index.html':'off leash off-leash park parks','are-dogs-allowed-on-beaches/index.html':'allowed prohibited rules service animal',
+ 'license-and-rabies/index.html':'license rabies tag vaccination fee county','disclaimer/index.html':'disclaimer liability warranty',
+ 'find/index.html':'search index all pages find',
+ 'counties/miami-dade/index.html':'Miami-Dade Miami Beach Haulover','counties/broward/index.html':'Broward Fort Lauderdale Hollywood Pompano',
+ 'counties/palm-beach/index.html':'Palm Beach Boca Jupiter'}
+for p in P:
+    s.aliases[f'places/{p["id"]}/index.html']=f'{p["name"]} {p["county"]} {p["kind"]} {p["address"]}'
 def srcs(p): return ' <span class="src">['+', '.join(a(u,'official page' if i==0 else f'source {i+1}') for i,u in enumerate(p['src']))+']</span>'
 def row(p):
     f=f'<br><span class="tag mix">Check</span> <span class="src">{esc(p["flag"])}</span>' if p['flag'] else ''
     return f'<tr><td><strong><a href="/places/{p["id"]}/">{esc(p["name"])}</a></strong><br><span class="src">{p["county"]}</span></td><td>{esc(p["address"])}</td><td>{esc(p["hours"])}</td><td>{esc(p["fee"])}</td><td>{srcs(p)}{f}</td></tr>'
-def table(ps):
-    return '<input id="q" placeholder="Filter by city or name" oninput="var v=this.value.toLowerCase();document.querySelectorAll(\'table tr\').forEach(function(x){if(x.querySelector(\'td\'))x.style.display=x.textContent.toLowerCase().indexOf(v)>-1?\'\':\'none\'})"><div class="wrap"><table><tr><th>Place</th><th>Location</th><th>Days and hours</th><th>Permit, fee, parking</th><th>Source and notes</th></tr>'+''.join(row(p) for p in ps)+'</table></div>'
+def filters():
+    return ('<div class="place-filter"><label for="place-filter">Filter by city or name</label>'
+            '<input id="place-filter" name="place-filter" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">'
+            '<p id="place-filter-status" class="filter-status" aria-live="polite"></p></div>')
+def table(ps, label='Places'):
+    heads='<th scope="col">Place</th><th scope="col">Location</th><th scope="col">Days and hours</th><th scope="col">Permit, fee, parking</th><th scope="col">Source and notes</th>'
+    return (f'<div class="wrap" tabindex="0" aria-label="{esc(label)}"><table><thead><tr>{heads}</tr></thead><tbody>'
+            +''.join(row(p) for p in ps)+'</tbody></table></div>')
 B=[p for p in P if p['kind']=='beach']; K=[p for p in P if p['kind']=='park']; FL=[p for p in P if p['flag']]
 CONF='<div class="card conf"><strong>Conflicts and gaps found on '+D+'</strong><ul>'+''.join(f'<li><strong>{esc(p["name"])}:</strong> {esc(p["flag"])}</li>' for p in FL)+'</ul></div>'
-b=f'''<h1>South Florida dog beaches and off-leash dog parks</h1><p>{len(B)} dog beaches and {len(K)} off-leash dog parks in Miami-Dade, Broward and Palm Beach counties, each with days, hours (including seasonal hours), permits or fees, and rules from the official city or county page.</p>
+HOME_TOP=f'''<h1>South Florida dog beaches and off-leash dog parks</h1><p>{len(B)} dog beaches and {len(K)} off-leash dog parks in Miami-Dade, Broward and Palm Beach counties, each with days, hours (including seasonal hours), permits or fees, and rules from the official city or county page.</p>
 <div class="card note"><strong>Most South Florida beaches do not allow dogs.</strong> Use only the designated dog beaches below. {a("/are-dogs-allowed-on-beaches/","Read the rules")}.</div>
-<div class="card"><strong>License and rabies tags.</strong> Florida requires a rabies vaccination, and each county requires its own dog tag. Fees, where to buy the tag, and which of these places ask for proof are on the {a("/license-and-rabies/","license and rabies page")}.</div>
-<h2>Dog beaches</h2>{table(B)}
+<div class="card"><strong>License and rabies tags.</strong> Florida requires a rabies vaccination, and each county requires its own dog tag. Fees, where to buy the tag, and which of these places ask for proof are on the {a("/license-and-rabies/","license and rabies page")}.</div>'''
+HOME_BOTTOM=f'''<h2>Dog beaches</h2>{filters()}{table(B,"Dog beaches")}
 <h2>Seasonal and day-limited at a glance</h2><ul><li>Miami Beach Bark Beach: Friday to Sunday only; 3 p.m. to 7 p.m. March to October, 1:30 p.m. to 5:30 p.m. November to February.</li><li>Boca Raton Bark Beach: 7 a.m. to 9 a.m., then 3 p.m. to sunset in standard time or 5 p.m. to sunset in daylight saving time; permit required.</li><li>Broward County Barkham and Woofing Waters: closed third week of January through second week of April.</li><li>West Kendall District Park dog park: temporarily closed starting Oct. 14, with a tentative reopening Friday, Oct. 30. The park page does not state the year.</li></ul>
 <h2>Off-leash dog parks</h2><p>See {a("/dog-parks/","all off-leash dog parks")} or browse by county: {", ".join(a(f"/counties/{k}/",v) for k,v in CO.items())}.</p>{CONF}'''
-s.page('index.html',"South Florida dog beaches and parks: hours and rules","Dog beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach with seasonal hours, days, permits, fees and rules from official pages.",b)
-s.page('dog-beaches/index.html',"South Florida dog beaches: days, hours and permits","7 designated dog beaches in Miami-Dade, Broward and Palm Beach, with days, seasonal hours, permits, fees and rules from official pages.",f'<h1>Dog beaches in South Florida</h1><p>{len(B)} designated dog beaches.</p>'+table(B)+CONF)
-s.page('dog-parks/index.html',"Off-leash dog parks in South Florida: hours and fees","Off-leash dog parks run by Miami-Dade, Broward, Palm Beach counties and cities, with hours, maintenance closures, fees and rules.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+table(K)+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap"><table><tr><th>Park</th><th>Address</th><th>Phone</th></tr>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</table></div>')
+s.page('dog-beaches/index.html',"South Florida dog beaches: days, hours and permits","7 designated dog beaches in Miami-Dade, Broward and Palm Beach, with days, seasonal hours, permits, fees and rules from official pages.",f'<h1>Dog beaches in South Florida</h1><p>{len(B)} designated dog beaches.</p>'+filters()+table(B,"Dog beaches")+CONF)
+s.page('dog-parks/index.html',"Off-leash dog parks in South Florida: hours and fees","Off-leash dog parks run by Miami-Dade, Broward, Palm Beach counties and cities, with hours, maintenance closures, fees and rules.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+filters()+table(K,"Off-leash dog parks")+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap" tabindex="0" aria-label="Other city dog parks listed by Broward County"><table><thead><tr><th scope="col">Park</th><th scope="col">Address</th><th scope="col">Phone</th></tr></thead><tbody>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</tbody></table></div>')
 COUNTY_TITLE={
  'miami-dade':"Dog beaches and off-leash parks in Miami-Dade County",
  'broward':"Broward County dog beaches and off-leash dog parks",
@@ -42,7 +113,7 @@ COUNTY_DESC={
 }
 for k,v in CO.items():
     ps=[p for p in P if p['county']==v]
-    s.page(f'counties/{k}/index.html',COUNTY_TITLE[k],COUNTY_DESC[k],f'<h1>Dog beaches and dog parks in {v} County</h1><p>County dog license, rabies vaccination, and which of these places ask for a tag: {a("/license-and-rabies/","license and rabies rules")}.</p><h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'])+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park']))
+    s.page(f'counties/{k}/index.html',COUNTY_TITLE[k],COUNTY_DESC[k],f'<h1>Dog beaches and dog parks in {v} County</h1><p>County dog license, rabies vaccination, and which of these places ask for a tag: {a("/license-and-rabies/","license and rabies rules")}.</p>'+filters()+f'<h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'],'Dog beaches')+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park'],'Off-leash dog parks'))
 PLACE_TITLE={
  'haulover-dog-beach':"Haulover Park Dog Beach (Miami-Dade County): hours and rules",
  'pompano-wags-and-waves':"Wags and Waves Dog Beach, Pompano: hours and rules",
@@ -156,13 +227,14 @@ lic=f'''<h1>Dog license and rabies tag rules for South Florida</h1>
 <p>The pet vaccinations page lists Wellness Clinic hours in the same Doral building: Monday through Friday 9:00 a.m. to 6:00 p.m., Saturday and Sunday 9:00 a.m. to 4:00 p.m. Closed county holidays. See the appointment conflict above before you rely on walk-in service. Dogs and cats must be four months old. An individual rabies vaccine is $25. The low-income rabies vaccine is $10 with the eligibility letter described above. Those are county clinic prices. The county also lists a mobile clinic whose location changes by month, Monday through Wednesday, 8:30 a.m. to noon and 1:00 p.m. to 4:30 p.m. <span class="src">[{MD_VAX}]</span></p>
 <h3>Listed Miami-Dade places</h3>
 <p>"Rabies tag" on the dog parks page is the county's phrase. That page does not say whether the metal tag from a veterinarian is enough, or whether the county license tag is the tag it means. The license page is titled "Dog License (Tag)."</p>
-<div class="wrap"><table>
-<tr><th>Place</th><th>What that place's page requires</th></tr>
+<div class="wrap" tabindex="0" aria-label="Places and what the page requires"><table>
+<thead><tr><th scope="col">Place</th><th scope="col">What that place's page requires</th></tr></thead>
+<tbody>
 <tr><td>{pl("miami-beach-bark-beach","North Beach Bark Beach")}</td><td>The city page does not mention a rabies tag, a license, or vaccination proof. <span class="src">[{MB}]</span></td></tr>
 <tr><td>{pl("haulover-dog-beach","Haulover Park Dog Beach")}</td><td>The county rules sheet does not mention a tag or vaccination proof. It does say puppies under 6 months are not allowed. <span class="src">[{MD_BEACH}]</span></td></tr>
 <tr><td>{pl("haulover-bark-park","Haulover Bark Park")}, {pl("md-west-kendall","West Kendall")}, {pl("md-amelia-earhart","Amelia Earhart")}, {pl("md-east-greynolds","East Greynolds")}, {pl("md-tropical","Tropical Park")}</td><td>The county dog park rules say vaccinations must be up to date and a current rabies tag must be displayed. <span class="src">[{MD_PARKS}]</span></td></tr>
 <tr><td>{pl("md-lago-mar","Lago Mar dog run")}</td><td>Listed on the same dog parks page as a dog run. That page's dog park rules include the rabies tag line. There is no separate Lago Mar rule sheet on the page. <span class="src">[{MD_PARKS}]</span></td></tr>
-</table></div>
+</tbody></table></div>
 <h2>Broward County</h2>
 <p>Broward County says every dog, cat and ferret must receive a rabies vaccination, and that every dog and cat must have and wear a Broward County pet rabies registration tag. Dogs and cats four months or older must be registered. Indoor pets are not exempt. A tattoo, microchip, or name tag does not replace the county tag. The tag is a lifetime tag that you buy once. Registration still has to be renewed. A current rabies certificate from a licensed veterinarian is required at the first purchase and at renewal. If a veterinarian waives the vaccine for health reasons, the tag is still required. The tags page does not describe a short-visit exception. <span class="src">[{BW}]</span></p>
 <p>Registration is valid for one year from the date of the rabies vaccination, not from the day you buy the tag. The page says to renew within 30 days of the vaccination, and that a late fee applies if the tag or renewal is bought more than 30 days after vaccination or more than 30 days after the registration expires. It says fines for no vaccination or no registration are issued after 60 days. The stated fine is $300 for no rabies vaccination and $300 for no county registration. The late fee is $10. You are not in violation if the dog has a current rabies vaccine, you have paid for the tag, and you are waiting for it in the mail. <span class="src">[{BW}]</span></p>
@@ -178,15 +250,16 @@ lic=f'''<h1>Dog license and rabies tag rules for South Florida</h1>
 <p>Buy the tag at the Adoption Center, at an approved veterinary office, online (upload the rabies certificate; the tag is not issued until the county receives it), or by mail. Tag sales at the Adoption Center are Monday through Sunday, 11:00 a.m. to 5:30 p.m. Bring a copy of the rabies certificate. Animal Care is at 2400 Southwest 42nd Street, Fort Lauderdale, Florida 33312. Mail a check or money order payable to the Board of County Commissioners, Animal Care Division, to Broward County Animal Licensing, in care of PetData, Post Office Box 141929, Irving, Texas 75014-1929. <span class="src">[{BW}, {BW_HOME}]</span></p>
 <p>The county has not published a single rabies-shot price. See the clinic conflict above. The on-site Pet Care Clinic is temporarily closed and is not taking new appointments. The clinic page's listed mobile clinic date, Wednesday, October 14, 2026, was already past on this check. The page says to check back for the next date. Pets must be 4 months or older for a rabies vaccine at those clinics. The contact printed for clinic registration is petcareclinic@broward.org or 954-357-9567. A private veterinarian can give the vaccine. This page does not have a county price for that visit. <span class="src">[{BW_CLINIC}, {BW_HOME}]</span></p>
 <h3>Listed Broward places</h3>
-<div class="wrap"><table>
-<tr><th>Place</th><th>What that place's page requires</th></tr>
+<div class="wrap" tabindex="0" aria-label="Places and what the page requires"><table>
+<thead><tr><th scope="col">Place</th><th scope="col">What that place's page requires</th></tr></thead>
+<tbody>
 <tr><td>{pl("hollywood-dog-beach","Dog Beach at Hollywood Beach")}</td><td>Dogs must have a current rabies tag. The city page does not say a staff member checks it at the entrance. <span class="src">[{HW}]</span></td></tr>
 <tr><td>{pl("fort-lauderdale-canine-beach","Canine Beach")}</td><td>The city's park introduction says every dog must have current vaccinations and a license. Canine Beach's own numbered rules do not repeat that line. <span class="src">[{FTL}]</span></td></tr>
 <tr><td>{pl("pompano-wags-and-waves","Wags and Waves Dog Beach")}</td><td>The city page names the beach and states no tag, license, or vaccination rule for it. <span class="src">[{POMP_B}]</span></td></tr>
 <tr><td>{pl("barkham-markham","Barkham at Markham Park")} and {pl("woofing-waters","Woofing Waters")}</td><td>Proof of rabies vaccination is required, and the document must show the expiration date or the date the vaccine was given. The page does not say the county registration tag is inspected at the park. <span class="src">[{BW_PARKS}]</span></td></tr>
 <tr><td>{pl("ftl-holiday-park","Holiday Park Dog Park")}, {pl("ftl-riverside","Riverside Neighborhood Dog Park")}, {pl("ftl-snyder","Bark Park at Snyder Park")}</td><td>Each park's rules say every dog must have a current vaccination and license. Puppies under four months are not allowed. The city says these dog parks are not staffed. <span class="src">[{FTL}]</span></td></tr>
 <tr><td>{pl("pompano-canine-corner","Canine Corner")}</td><td>Members only. Registration requires a current rabies vaccination certificate. The city says the metal tag alone is not enough. Also bring proof of residency and a photo of the dog. In the park, the dog must wear a current rabies tag and a personalized identification tag. The park is self-monitored. Register at the Emma Lou Olson Civic Center, 1801 Northeast 6th Street, or the Pompano Beach Aquatic Center, 820 Northeast 18th Avenue. <span class="src">[{POMP}]</span></td></tr>
-</table></div>
+</tbody></table></div>
 <h2>Palm Beach County</h2>
 <p>County Code chapter 4 applies in both cities and unincorporated areas unless a municipal exemption applies. This check did not find a published exemption for Boca Raton or Jupiter. The county's ordinance index does not list exempt cities. <span class="src">[{PBC_CODE}, {PBC_ORD}]</span></p>
 <p>Use the age conflict above before you rely on a single number. Section 4-10 requires rabies vaccination in line with the state statute. A visitor who is in the county for 30 days or less meets that rabies section with a current certificate from home. A dog or cat without one must be vaccinated and given a county certificate. A dog or cat that moves in for more than 30 days needs a current certificate that matches the county form, or a new county vaccination and certificate. <span class="src">[{PBC_CODE}, {S828}]</span></p>
@@ -204,12 +277,13 @@ lic=f'''<h1>Dog license and rabies tag rules for South Florida</h1>
 </ul>
 <p>The code says the county division and authorized veterinary clinics sell the tag. The main shelter is 7100 Belvedere Road, West Palm Beach, Florida 33411, west of Florida's Turnpike. Phone (561) 233-1200. Hours on the rabies page: Monday through Friday 11:00 a.m. to 6:00 p.m., Saturday 10:00 a.m. to 5:00 p.m., Sunday 11:00 a.m. to 4:00 p.m. Closed government holidays. For tag renewal questions, the county says to call 1-888-782-6057. Shot times are in the conflict note above. Call before you go. <span class="src">[{PBC}, {PBC_HOME}, {PBC_CODE}]</span></p>
 <h3>Listed Palm Beach County places</h3>
-<div class="wrap"><table>
-<tr><th>Place</th><th>What that place's page requires</th></tr>
+<div class="wrap" tabindex="0" aria-label="Places and what the page requires"><table>
+<thead><tr><th scope="col">Place</th><th scope="col">What that place's page requires</th></tr></thead>
+<tbody>
 <tr><td>{pl("boca-bark-beach","Bark Beach at Spanish River Park")}</td><td>The city requires a Bark Beach permit, carried by the handler, one permit per dog. The beach rules and the annual permits page do not list a rabies certificate or a county license tag among the documents for that permit. The permits page does require residency proof for a resident rate. <span class="src">[{BOCA}, {BOCA2}]</span></td></tr>
 <tr><td>{pl("jupiter-dog-beach","Jupiter Dog Beach")}</td><td>The town's beach questions page says dogs must have proper tags and licenses worn visibly and securely around the neck, and must show evidence of rabies vaccination. The town's dogs-on-the-beach page and the county Jupiter Dog Beach page do not repeat that line. None of the three says an out-of-county tag is accepted or rejected. <span class="src">[{JUP}, {JUP2}, {JUP3}]</span></td></tr>
 <tr><td>{pl("pbc-canine-cove","Canine Cove")}, {pl("pbc-lake-ida","Lake Ida West")}, {pl("pbc-lake-woof","Lake Woof")}, {pl("pbc-pooch-pines","Pooch Pines")}</td><td>County dog park rules say dogs must be vaccinated and must display current licenses. The page does not say a staff member checks papers at the gate. These parks are unsupervised. <span class="src">[{PBC_PARKS}]</span></td></tr>
-</table></div>
+</tbody></table></div>
 <h2>Left off this page</h2>
 <ul>
 <li>Private veterinarian prices, other than the county clinic prices above.</li>
@@ -247,6 +321,40 @@ b=f'''<h1>Disclaimer</h1>
 <h2>Contact and corrections</h2>
 <p>This site does not publish an email address or a contact form. If an entry looks wrong, compare it with the official page linked on that entry and with the signs posted at the park.</p>'''
 s.page('disclaimer/index.html',"Disclaimer: South Florida dog beaches and parks guide","General information only. No warranty and no liability. This independent site is not a city, county or park authority. Check the official park page.",b)
-hubs=''.join(f'<li><a href="{esc(clean_url(p))}">{esc(t)}</a></li>' for p,t in NAV+[('disclaimer/index.html','Disclaimer')])
+FIND_TITLE="Find a page on South Florida dog beaches and parks"
+FIND_DESC="Search or browse every page in this independent guide to dog beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach."
+s.summaries['find/index.html']=FIND_DESC
+def jump(path, label, keywords=None):
+    blurb=s.summaries.get(path,'')
+    extra=f'<span class="ls">{esc(blurb)}</span>' if blurb else ''
+    attrs=f' data-keywords="{esc(keywords)}"' if keywords is not None else ''
+    return f'<li{attrs}><a class="jump" href="{esc(clean_url(path))}"><span class="lt">{esc(label)}</span>{extra}</a></li>'
+find='<h1>All pages</h1><p>Type in the search box at the top of this page. The list below stays complete if search is not available.</p><p id="index-status" class="index-status" aria-live="polite">Showing every page.</p><h2>Pages by topic</h2><div id="page-index">'
+for g,it in GROUPS:
+    find+=f'<section><h3 id="find-{slug(g)}">{esc(g)}</h3><ul class="index-list">'+''.join(jump(p,t,s.aliases.get(p,'')) for p,t in it)+'</ul></section>'
+find+='</div>'
+s.page('find/index.html',FIND_TITLE,FIND_DESC,find)
+def topic_blocks():
+    html=''
+    for g,it in GROUPS:
+        html+=f'<section class="topic"><h3 id="topic-{slug(g)}">{esc(g)}</h3><ul class="link-grid">'+''.join(jump(p,t) for p,t in it)+'</ul></section>'
+    return html
+START=[
+ ('are-dogs-allowed-on-beaches/index.html','Are dogs allowed on beaches?'),
+ ('dog-beaches/index.html','Dog beaches'),
+ ('dog-parks/index.html','Off-leash dog parks'),
+ ('license-and-rabies/index.html','License and rabies')]
+TASKS=START+[
+ ('counties/miami-dade/index.html','Miami-Dade'),
+ ('counties/broward/index.html','Broward'),
+ ('counties/palm-beach/index.html','Palm Beach')]
+way=('<h2>Start here</h2><p>Open these pages in this order when you plan a visit.</p><ol class="steps">'+''.join(jump(p,l) for p,l in START)+'</ol>'
+     '<h2>Top tasks</h2><p>The pages people open most often.</p><ul class="tasks">'+''.join(jump(p,l) for p,l in TASKS)+'</ul>')
+topics='<h2>All topics</h2><p>Every page on this guide, grouped by subject.</p>'+topic_blocks()
+s.page('index.html',"South Florida dog beaches and parks: hours and rules","Dog beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach with seasonal hours, days, permits, fees and rules from official pages.",HOME_TOP+way+HOME_BOTTOM+topics,kind='home')
+hubs=('''<li><a href="/">Home</a></li><li><a href="/dog-beaches/">Dog beaches</a></li><li><a href="/dog-parks/">Off-leash dog parks</a></li>'''
+      '<li><a href="/counties/miami-dade/">Miami-Dade</a></li><li><a href="/counties/broward/">Broward</a></li><li><a href="/counties/palm-beach/">Palm Beach</a></li>'
+      '<li><a href="/are-dogs-allowed-on-beaches/">Are dogs allowed on beaches?</a></li><li><a href="/license-and-rabies/">License and rabies</a></li>'
+      '<li><a href="/find/">All pages</a></li><li><a href="/disclaimer/">Disclaimer</a></li>')
 s.page('404.html',"Page not found on the South Florida dog beach guide","That page is not in this South Florida dog beach and off-leash dog park guide. Try the home page, dog beaches, dog parks or a county page.",f'<h1>Page not found</h1><p>That page is not on this guide.</p><ul>{hubs}</ul>',listed=False)
 s.finish(); print(len(s.pages),'pages',len(B),'beaches',len(K),'parks',len(CITYPARKS),'listed city parks')
