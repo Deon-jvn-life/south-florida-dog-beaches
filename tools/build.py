@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Build the South Florida dog beaches and off-leash dog parks guide into site/. Run: python3 tools/build.py"""
-import json,os,sys
+import json,os,sys,urllib.parse
 HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE); sys.path.insert(0,HERE)
 from sitelib import Site,CSS,D,DISCLAIMER,esc,a,clean_url,slug
 BASE="https://south-florida-dog-beaches.vercel.app"
 # Optional search-engine verification. Leave a value empty to omit that meta tag.
 VERIFY={"google-site-verification":"XA7XgB_UwrIRvQyNVsnWpSyTyaU6e3-v4g4RBw8RAVI","msvalidate.01":""}
 P=json.load(open(os.path.join(HERE,'places.json')))
+GEO=json.load(open(os.path.join(HERE,'geo.json')))
+CITY_GEO=GEO['city_parks']
+CITY_UNPINNED=GEO['unpinned_city_parks']
 BCL="https://www.broward.org/parks/thingstodo/dogparks"
 CITYPARKS=[("Dog Park at Emerald Hills Park (City of Hollywood)","3901 N. 30th Terrace, Hollywood 33021","954-921-3404"),("Dog Park at John Williams Park (City of Hollywood)","6101 Sheridan St., Hollywood 33021","954-921-3404"),("Dog Park at Oakridge Park (City of Hollywood)","5200 S.W. 35th Ave., Hollywood 33021","954-921-3404"),("Dog Park at Poinciana Park (City of Hollywood)","1301 S. 21st Ave., Hollywood 33020","954-921-3404"),("Dr. Steven G. Paul Dog Park (City of Coral Springs)","2575 Sportsplex Dr., Coral Springs 33067","954-346-4428"),("Gary B. Jones Park for People and Pups (City of Tamarac)","8101 Southgate Blvd., Tamarac 33321","954-597-3620"),("Happy Tails Dog Park (City of Plantation)","6500 S.W. 16th St., Plantation 33317","954-452-2510"),("Joseph Scavo Park (City of Hallandale Beach)","900 Three Islands Blvd., Hallandale Beach 33009","954-457-1452"),("Oakland Bark Park (City of Oakland Park)","971 N.W. 38th St., Oakland Park 33309","954-630-4352"),("Precious Paws Dog Park at Patrick J. Meli Park (City of Dania Beach)","2901 S.W. 52nd St., Dania Beach 33312","954-985-4400"),("Windmill Park (City of Coconut Creek)","700 Lyons Rd., Coconut Creek 33063","954-545-6670"),("Woodville Dog Park (City of North Lauderdale)","1500 S.W. 83rd Ave., North Lauderdale 33068","954-724-7061")]
 CO={'miami-dade':'Miami-Dade','broward':'Broward','palm-beach':'Palm Beach'}
@@ -80,9 +83,59 @@ s.aliases={
 for p in P:
     s.aliases[f'places/{p["id"]}/index.html']=f'{p["name"]} {p["county"]} {p["kind"]} {p["address"]}'
 def srcs(p): return ' <span class="src">['+', '.join(a(u,'official page' if i==0 else f'source {i+1}') for i,u in enumerate(p['src']))+']</span>'
+def _in_sfl(lat,lon):
+    return 25.4<=float(lat)<=27.2 and -80.9<=float(lon)<=-79.9
+def _usable(g):
+    if not isinstance(g,dict): return None
+    try: lat,lon=float(g['lat']),float(g['lon'])
+    except (KeyError,TypeError,ValueError): return None
+    if not _in_sfl(lat,lon): return None
+    if not g.get('method') or not g.get('query') or not g.get('display_name'): return None
+    return lat,lon
+def directions_url(address):
+    return 'https://www.google.com/maps/dir/?api=1&destination='+urllib.parse.quote(address,safe='')
+def directions_link(address,name):
+    return (f'<a href="{esc(directions_url(address))}" target="_blank" rel="noopener">Get directions'
+            f'<span class="vh"> to {esc(name)} (opens in a new tab)</span></a>')
+def place_entry(p):
+    pair=_usable(p.get('geo'))
+    lat,lon=pair if pair else (None,None)
+    return {'name':p['name'],'address':p['address'],'url':f'/places/{p["id"]}/','lat':lat,'lon':lon}
+def city_entry(name,address):
+    pair=_usable(CITY_GEO.get(address))
+    lat,lon=pair if pair else (None,None)
+    return {'name':name,'address':address,'url':'','lat':lat,'lon':lon}
+def _name_list(names):
+    names=[esc(n) for n in names]
+    if len(names)==1: return names[0]
+    if len(names)==2: return names[0]+' and '+names[1]
+    return ', '.join(names[:-1])+', and '+names[-1]
+def map_block(entries,label,solo=False):
+    pins=[e for e in entries if e['lat'] is not None]
+    if not pins: return ''
+    omitted=[e['name'] for e in entries if e['lat'] is None]
+    payload=[{'name':e['name'],'url':e['url'],'address':e['address'],'lat':e['lat'],'lon':e['lon'],'directions':directions_url(e['address'])} for e in pins]
+    raw=json.dumps(payload,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c')
+    if solo:
+        aria=f'Map of {label}.'
+        lead='This map is an extra view of the place above. Select the map to zoom with the scroll wheel.'
+    else:
+        word='place' if len(pins)==1 else 'places'
+        aria=f'Map of {label}. {len(pins)} {word} marked. The text list is the full set of places.'
+        lead='The list above is the full set of places. This map is an extra view. Select the map to zoom with the scroll wheel.'
+    miss=''
+    if len(omitted)==1:
+        miss=f'<p class="map-note">{_name_list(omitted)} is not on the map because a confident point was not found.</p>'
+    elif omitted:
+        miss=f'<p class="map-note">These places are not on the map because a confident point was not found: {_name_list(omitted)}.</p>'
+    return (f'<div class="map-frame"><h2>Map</h2>'
+            f'<p class="map-note">{lead}</p>{miss}'
+            f'<div class="map-canvas" role="region" aria-label="{esc(aria)}"><p class="map-pending">Map loads when this part of the page is on screen.</p></div>'
+            f'<script type="application/json" class="map-data">{raw}</script></div>')
 def row(p):
     f=f'<br><span class="tag mix">Check</span> <span class="src">{esc(p["flag"])}</span>' if p['flag'] else ''
-    return f'<tr><td><strong><a href="/places/{p["id"]}/">{esc(p["name"])}</a></strong><br><span class="src">{p["county"]}</span></td><td>{esc(p["address"])}</td><td>{esc(p["hours"])}</td><td>{esc(p["fee"])}</td><td>{srcs(p)}{f}</td></tr>'
+    where=f'{esc(p["address"])} {directions_link(p["address"], p["name"])}'
+    return f'<tr><td><strong><a href="/places/{p["id"]}/">{esc(p["name"])}</a></strong><br><span class="src">{p["county"]}</span></td><td>{where}</td><td>{esc(p["hours"])}</td><td>{esc(p["fee"])}</td><td>{srcs(p)}{f}</td></tr>'
 def filters():
     return ('<div class="place-filter"><label for="place-filter">Filter by city or name</label>'
             '<input id="place-filter" name="place-filter" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">'
@@ -96,11 +149,15 @@ CONF='<div class="card conf"><strong>Conflicts and gaps found on '+D+'</strong><
 HOME_TOP=f'''<h1>South Florida dog beaches and off-leash dog parks</h1><p>{len(B)} dog beaches and {len(K)} off-leash dog parks in Miami-Dade, Broward and Palm Beach counties, each with days, hours (including seasonal hours), permits or fees, and rules from the official city or county page.</p>
 <div class="card note"><strong>Most South Florida beaches do not allow dogs.</strong> Use only the designated dog beaches below. {a("/are-dogs-allowed-on-beaches/","Read the rules")}.</div>
 <div class="card"><strong>License and rabies tags.</strong> Florida requires a rabies vaccination, and each county requires its own dog tag. Fees, where to buy the tag, and which of these places ask for proof are on the {a("/license-and-rabies/","license and rabies page")}.</div>'''
-HOME_BOTTOM=f'''<h2>Dog beaches</h2>{filters()}{table(B,"Dog beaches")}
+HOME_BOTTOM=f'''<h2>Dog beaches</h2>{filters()}{table(B,"Dog beaches")}{map_block([place_entry(p) for p in B],"the dog beaches on this page")}
 <h2>Seasonal and day-limited at a glance</h2><ul><li>Miami Beach Bark Beach: Friday to Sunday only; 3 p.m. to 7 p.m. March to October, 1:30 p.m. to 5:30 p.m. November to February.</li><li>Boca Raton Bark Beach: 7 a.m. to 9 a.m., then 3 p.m. to sunset in standard time or 5 p.m. to sunset in daylight saving time; permit required.</li><li>Broward County Barkham and Woofing Waters: closed third week of January through second week of April.</li><li>West Kendall District Park dog park: temporarily closed starting Oct. 14, with a tentative reopening Friday, Oct. 30. The park page does not state the year.</li></ul>
 <h2>Off-leash dog parks</h2><p>See {a("/dog-parks/","all off-leash dog parks")} or browse by county: {", ".join(a(f"/counties/{k}/",v) for k,v in CO.items())}.</p>{CONF}'''
-s.page('dog-beaches/index.html',"South Florida dog beaches: days, hours and permits","7 designated dog beaches in Miami-Dade, Broward and Palm Beach, with days, seasonal hours, permits, fees and rules from official pages.",f'<h1>Dog beaches in South Florida</h1><p>{len(B)} designated dog beaches.</p>'+filters()+table(B,"Dog beaches")+CONF)
-s.page('dog-parks/index.html',"Off-leash dog parks in South Florida: hours and fees","Off-leash dog parks run by Miami-Dade, Broward, Palm Beach counties and cities, with hours, maintenance closures, fees and rules.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+filters()+table(K,"Off-leash dog parks")+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap" tabindex="0" aria-label="Other city dog parks listed by Broward County"><table><thead><tr><th scope="col">Park</th><th scope="col">Address</th><th scope="col">Phone</th></tr></thead><tbody>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</tbody></table></div>')
+s.page('dog-beaches/index.html',"South Florida dog beaches: days, hours and permits","7 designated dog beaches in Miami-Dade, Broward and Palm Beach, with days, seasonal hours, permits, fees and rules from official pages.",f'<h1>Dog beaches in South Florida</h1><p>{len(B)} designated dog beaches.</p>'+filters()+table(B,"Dog beaches")+map_block([place_entry(p) for p in B],"the dog beaches on this page")+CONF)
+for _n,_x,_ph in CITYPARKS:
+    if (_x in CITY_GEO)==(_x in CITY_UNPINNED):
+        raise SystemExit('City park needs one geocode decision: '+_x)
+PARK_ENTRIES=[place_entry(p) for p in K]+[city_entry(n,x) for n,x,_ph in CITYPARKS]
+s.page('dog-parks/index.html',"Off-leash dog parks in South Florida: hours and fees","Off-leash dog parks run by Miami-Dade, Broward, Palm Beach counties and cities, with hours, maintenance closures, fees and rules.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+filters()+table(K,"Off-leash dog parks")+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap" tabindex="0" aria-label="Other city dog parks listed by Broward County"><table><thead><tr><th scope="col">Park</th><th scope="col">Address</th><th scope="col">Phone</th></tr></thead><tbody>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)} {directions_link(x,n)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</tbody></table></div>'+map_block(PARK_ENTRIES,"the dog parks on this page"))
 COUNTY_TITLE={
  'miami-dade':"Dog beaches and off-leash parks in Miami-Dade County",
  'broward':"Broward County dog beaches and off-leash dog parks",
@@ -113,7 +170,7 @@ COUNTY_DESC={
 }
 for k,v in CO.items():
     ps=[p for p in P if p['county']==v]
-    s.page(f'counties/{k}/index.html',COUNTY_TITLE[k],COUNTY_DESC[k],f'<h1>Dog beaches and dog parks in {v} County</h1><p>County dog license, rabies vaccination, and which of these places ask for a tag: {a("/license-and-rabies/","license and rabies rules")}.</p>'+filters()+f'<h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'],'Dog beaches')+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park'],'Off-leash dog parks'))
+    s.page(f'counties/{k}/index.html',COUNTY_TITLE[k],COUNTY_DESC[k],f'<h1>Dog beaches and dog parks in {v} County</h1><p>County dog license, rabies vaccination, and which of these places ask for a tag: {a("/license-and-rabies/","license and rabies rules")}.</p>'+filters()+f'<h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'],'Dog beaches')+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park'],'Off-leash dog parks')+map_block([place_entry(p) for p in ps],f'{v} County dog beaches and dog parks'))
 PLACE_TITLE={
  'haulover-dog-beach':"Haulover Park Dog Beach (Miami-Dade County): hours and rules",
  'pompano-wags-and-waves':"Wags and Waves Dog Beach, Pompano: hours and rules",
@@ -158,7 +215,9 @@ for p in P:
     rl=''.join(f'<li>{esc(x)}</li>' for x in p['rules']) or '<li>Not stated on the official page we could read.</li>'
     f=f'<div class="card conf">{esc(p["flag"])}</div>' if p['flag'] else ''
     ph=f'<p><strong>Phone:</strong> {esc(p["phone"])}</p>' if p['phone'] else ''
-    b=f'''<h1>{esc(p["name"])}</h1><div class="card"><p><strong>Type:</strong> {"Dog beach" if p["kind"]=="beach" else "Off-leash dog park"}, {p["county"]} County</p><p><strong>Location:</strong> {esc(p["address"])}</p><p><strong>Days and hours:</strong> {esc(p["hours"])}</p><p><strong>Permit, fee, parking:</strong> {esc(p["fee"])}</p>{ph}<p>{srcs(p)}</p></div>{f}<h2>Rules</h2><ul>{rl}</ul><p>{a("/","All dog beaches and parks")}. {a("/license-and-rabies/","License and rabies tag rules")}.</p>'''
+    entry=place_entry(p)
+    located=map_block([entry], p['name'], solo=True) or '<p class="map-note">This place is not on a map here because a confident point was not found.</p>'
+    b=f'''<h1>{esc(p["name"])}</h1><div class="card"><p><strong>Type:</strong> {"Dog beach" if p["kind"]=="beach" else "Off-leash dog park"}, {p["county"]} County</p><p><strong>Location:</strong> {esc(p["address"])} {directions_link(p["address"], p["name"])}</p><p><strong>Days and hours:</strong> {esc(p["hours"])}</p><p><strong>Permit, fee, parking:</strong> {esc(p["fee"])}</p>{ph}<p>{srcs(p)}</p></div>{f}{located}<h2>Rules</h2><ul>{rl}</ul><p>{a("/","All dog beaches and parks")}. {a("/license-and-rabies/","License and rabies tag rules")}.</p>'''
     title=PLACE_TITLE.get(p['id'], f"{p['name']}: hours, rules, permit")
     desc=PLACE_DESC[p['id']]
     hub=('dog-beaches/index.html','Dog beaches') if p['kind']=='beach' else ('dog-parks/index.html','Off-leash dog parks')
@@ -357,4 +416,31 @@ hubs=('''<li><a href="/">Home</a></li><li><a href="/dog-beaches/">Dog beaches</a
       '<li><a href="/are-dogs-allowed-on-beaches/">Are dogs allowed on beaches?</a></li><li><a href="/license-and-rabies/">License and rabies</a></li>'
       '<li><a href="/find/">All pages</a></li><li><a href="/disclaimer/">Disclaimer</a></li>')
 s.page('404.html',"Page not found on the South Florida dog beach guide","That page is not in this South Florida dog beach and off-leash dog park guide. Try the home page, dog beaches, dog parks or a county page.",f'<h1>Page not found</h1><p>That page is not on this guide.</p><ul>{hubs}</ul>',listed=False)
-s.finish(); print(len(s.pages),'pages',len(B),'beaches',len(K),'parks',len(CITYPARKS),'listed city parks')
+s.finish()
+pinned=sum(1 for p in P if place_entry(p)['lat'] is not None)
+city_pins=sum(1 for n,x,_ph in CITYPARKS if city_entry(n,x)['lat'] is not None)
+print(len(s.pages),'pages',len(B),'beaches',len(K),'parks',len(CITYPARKS),'listed city parks',pinned,'pinned places',city_pins,'pinned city parks')
+for path in s.pages:
+    html=open(os.path.join(ROOT,'site',path),encoding='utf-8').read()
+    if 'google.com/maps/embed' in html or 'maps.googleapis.com' in html:
+        raise SystemExit('Google Maps embed on '+path)
+    if path.startswith('places/'):
+        if html.count('>Get directions<span class="vh">')!=1:
+            raise SystemExit('Place page should have one Get directions link: '+path)
+        pid=path.split('/')[1]
+        rec=next(p for p in P if p['id']==pid)
+        if place_entry(rec)['lat'] is not None:
+            if 'class="map-canvas"' not in html or 'OpenStreetMap' not in html:
+                raise SystemExit('Missing map on '+path)
+        elif 'class="map-canvas"' in html:
+            raise SystemExit('Unexpected map on '+path)
+for path in ('index.html','dog-beaches/index.html','dog-parks/index.html','counties/miami-dade/index.html','counties/broward/index.html','counties/palm-beach/index.html'):
+    html=open(os.path.join(ROOT,'site',path),encoding='utf-8').read()
+    if html.count('class="map-canvas"')!=1:
+        raise SystemExit('Expected one map on '+path)
+    if 'scrollWheelZoom:false' not in html or 'isolation:isolate' not in html:
+        raise SystemExit('Map accessibility CSS or scroll lock missing on '+path)
+    if 'OpenStreetMap</a> contributors' not in html:
+        raise SystemExit('Missing OpenStreetMap attribution on '+path)
+if not os.path.isfile(os.path.join(ROOT,'site','assets','leaflet','leaflet.js')):
+    raise SystemExit('Leaflet was not copied into site/')

@@ -170,6 +170,11 @@ table{border-collapse:collapse;width:100%;background:#fff;font-size:1rem}
 th,td{border:1px solid var(--line);padding:var(--s12) var(--s16);text-align:left;vertical-align:top}
 th{background:#E7EFE9;color:var(--ink)}
 .wrap{overflow-x:auto;max-width:100%;margin:var(--s16) 0;border-radius:12px}
+.map-frame{position:relative;z-index:0;isolation:isolate;margin:0 0 var(--s24)}
+.map-canvas{height:22rem;background:#E7EFE9;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.map-pending,.map-note{max-width:66ch}
+.map-pending{margin:0;padding:var(--s16)}
+.map-note{margin:0 0 var(--s12)}
 footer{border-top:1px solid var(--line);color:var(--ink);margin-top:var(--s32)}
 footer .shell{padding-top:var(--s32);padding-bottom:var(--s40)}
 footer p{max-width:66ch}
@@ -467,4 +472,97 @@ footer p{max-width:66ch}
   onScroll();
   updateHint();
   revealCurrent();
+})();</script><script>(function(){
+  var frame=document.querySelector(".map-frame");
+  if(!frame) return;
+  var canvas=frame.querySelector(".map-canvas");
+  var dataEl=frame.querySelector(".map-data");
+  if(!canvas||!dataEl) return;
+  var pins=[];
+  try { pins=JSON.parse(dataEl.textContent); } catch(err){ return; }
+  if(!pins.length) return;
+  var started=false;
+  var mapMade=false;
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function fail(){
+    var p=canvas.querySelector(".map-pending");
+    if(p) p.textContent="The map did not load. The list on this page is complete.";
+  }
+  function init(){
+    if(mapMade) return;
+    if(!window.L){ fail(); return; }
+    mapMade=true;
+    var reduce=false;
+    try { reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(err){ reduce=false; }
+    var style=document.createElement("style");
+    style.textContent=".leaflet-container{font-family:inherit;background:#E7EFE9;z-index:0}.leaflet-container .leaflet-popup-content,.leaflet-container .leaflet-control,.leaflet-container .leaflet-control-attribution{font-family:inherit}.leaflet-popup-content{font-size:1rem;line-height:1.5;color:#1A1814;margin:12px 16px}.map-pop-name{font-weight:700;margin:0 0 8px}.leaflet-popup-content a{color:#083E56}.leaflet-popup-content a:visited{color:#3D2A6B}.leaflet-container a.leaflet-popup-close-button{width:28px;height:28px;font-size:1.25rem;line-height:28px;color:#1A1814}.leaflet-control-zoom a{width:44px;height:44px;line-height:44px;font-size:1.25rem;color:#1A1814}.leaflet-control-attribution{font-size:.875rem;line-height:1.4;color:#1A1814;background:rgba(255,255,255,.95)}.leaflet-control-attribution a{color:#083E56}.leaflet-control-attribution a:visited{color:#3D2A6B}.map-canvas.leaflet-container:focus-visible{outline:3px solid #1A1814;outline-offset:3px}";
+    document.head.appendChild(style);
+    var pending=canvas.querySelector(".map-pending");
+    if(pending) pending.remove();
+    var map=L.map(canvas, {
+      scrollWheelZoom:false,
+      zoomAnimation:!reduce,
+      fadeAnimation:!reduce,
+      markerZoomAnimation:!reduce
+    });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    var bounds=[];
+    for(var i=0;i<pins.length;i++){
+      var pin=pins[i];
+      var lat=Number(pin.lat), lon=Number(pin.lon);
+      if(!isFinite(lat)||!isFinite(lon)) continue;
+      var marker=L.marker([lat, lon], {alt:String(pin.name||"Place"), title:String(pin.name||"Place"), keyboard:true});
+      var hrefAttr="href";
+      var nameHtml=pin.url ? "<a "+hrefAttr+"=\""+esc(pin.url)+"\">"+esc(pin.name)+"</a>" : esc(pin.name);
+      var html="<p class=\"map-pop-name\">"+nameHtml+"</p><p>"+esc(pin.address)+"</p><p><a "+hrefAttr+"=\""+esc(pin.directions)+"\" target=\"_blank\" rel=\"noopener\">Get directions<span class=\"vh\"> to "+esc(pin.name)+" (opens in a new tab)</span></a></p>";
+      marker.bindPopup(html, {maxWidth:320});
+      marker.addTo(map);
+      bounds.push([lat, lon]);
+    }
+    if(!bounds.length){ fail(); return; }
+    if(bounds.length===1) map.setView(bounds[0], 16);
+    else map.fitBounds(bounds, {padding:[32,32], maxZoom:14});
+    function arm(){ map.scrollWheelZoom.enable(); }
+    canvas.addEventListener("click", arm);
+    map.whenReady(function(){ map.invalidateSize(); });
+  }
+  function loadScript(){
+    if(window.L){ init(); return; }
+    var s=document.createElement("script");
+    s.src="/assets/leaflet/leaflet.js";
+    s.onload=init;
+    s.onerror=fail;
+    document.body.appendChild(s);
+  }
+  function start(){
+    if(started) return;
+    started=true;
+    var link=document.createElement("link");
+    link.rel="stylesheet";
+    link.href="/assets/leaflet/leaflet.css";
+    var cssDone=false;
+    function cssReady(){
+      if(cssDone) return;
+      cssDone=true;
+      loadScript();
+    }
+    link.onload=cssReady;
+    link.onerror=fail;
+    document.head.appendChild(link);
+    setTimeout(function(){ if(link.sheet) cssReady(); }, 80);
+  }
+  if(!("IntersectionObserver" in window)){ start(); return; }
+  var io=new IntersectionObserver(function(entries){
+    for(var i=0;i<entries.length;i++){
+      if(entries[i].isIntersecting){ io.disconnect(); start(); return; }
+    }
+  }, {rootMargin:"240px 0px"});
+  io.observe(canvas);
 })();</script></body></html>

@@ -1,0 +1,126 @@
+{
+  "about": "City dog park coordinates from OpenStreetMap Nominatim on 2026-10-28. Requests were limited to 1 per second. User-Agent: SouthFloridaDogBeachesGuide/1.0 (https://south-florida-dog-beaches.vercel.app; static guide; geocoding official street addresses). A pin is stored only when the result matched the official street address or a uniquely named park or dog park in the right city. No coordinate was guessed.",
+  "city_parks": {
+    "3901 N. 30th Terrace, Hollywood 33021": {
+      "lat": 26.046118,
+      "lon": -80.170515,
+      "method": "nominatim-address",
+      "query": "3901 N 30th Terrace, Hollywood, FL 33021",
+      "display_name": "3901, North 30th Terrace, Hollywood, Broward County, Florida, 33021, United States",
+      "osm_type": "way",
+      "osm_id": 10802769,
+      "retrieved": "2026-10-28"
+    },
+    "6101 Sheridan St., Hollywood 33021": {
+      "lat": 26.032406,
+      "lon": -80.210947,
+      "method": "nominatim-address",
+      "query": "6101 Sheridan St, Hollywood, FL 33021",
+      "display_name": "6101, Sheridan Street, Sunshine Park, Hollywood, Broward County, Florida, 33024, United States",
+      "osm_type": "way",
+      "osm_id": 134588649,
+      "retrieved": "2026-10-28",
+      "note": "House number, street, and city match. The point is inside John Williams Park. The returned ZIP is 33024."
+    },
+    "5200 S.W. 35th Ave., Hollywood 33021": {
+      "lat": 26.0564447,
+      "lon": -80.1952126,
+      "method": "nominatim-address",
+      "query": "Oakridge Park, Hollywood, Florida",
+      "display_name": "Oakridge Dog Park, 5200, Playland Isles, Hollywood, Broward County, Florida, 33312, United States",
+      "osm_type": "way",
+      "osm_id": 468489416,
+      "retrieved": "2026-10-28",
+      "note": "Feature is named Oakridge Dog Park and carries house number 5200 in Hollywood."
+    },
+    "1301 S. 21st Ave., Hollywood 33020": {
+      "lat": 26.00013,
+      "lon": -80.148376,
+      "method": "nominatim-address",
+      "query": "1301 S 21st Ave, Hollywood, FL 33020",
+      "display_name": "1301, South 21st Avenue, Hollywood, Broward County, Florida, 33020, United States",
+      "osm_type": "way",
+      "osm_id": 10796984,
+      "retrieved": "2026-10-28"
+    },
+    "2575 Sportsplex Dr., Coral Springs 33067": {
+      "lat": 26.2624413,
+      "lon": -80.293807,
+      "method": "nominatim-address",
+      "query": "2575 Sportsplex Dr, Coral Springs, FL 33067",
+      "display_name": "2575, Sportsplex Drive, Coral Springs, Broward County, Florida, 33065, United States",
+      "osm_type": "way",
+      "osm_id": 1223368232,
+      "retrieved": "2026-10-28",
+      "note": "Address point for 2575 Sportsplex Drive. A tennis center tagged with the same address was not used."
+    },
+    "8101 Southgate Blvd., Tamarac 33321": {
+      "lat": 26.2293328,
+      "lon": -80.2560713,
+      "method": "nominatim-named-place",
+      "query": "Gary B Jones Park for People and Pups, Tamarac, Florida",
+      "display_name": "Gary B. Jones Park for People and Pups, Cypress Creek Greenway, Tamarac, Broward County, Florida, 33071, United States",
+      "osm_type": "node",
+      "osm_id": 1067240593,
+      "retrieved": "2026-10-28",
+      "note": "The street address did not resolve to a house number. Nominatim returned a dog park node with the official park name in Tamarac."
+    },
+    "6500 S.W. 16th St., Plantation 33317": {
+      "lat": 26.1021948,
+      "lon": -80.2347802,
+      "method": "nominatim-named-place",
+      "query": "Happy Tails Dog Park, Plantation, Florida",
+      "display_name": "Happy Tails Dog Park, Plantation Isles, Plantation, Broward County, Florida, United States",
+      "osm_type": "way",
+      "osm_id": 155053122,
+      "retrieved": "2026-10-28",
+      "note": "Named dog park about 50 meters from the geocoded point for 6500 Southwest 16th Street."
+    },
+    "971 N.W. 38th St., Oakland Park 33309": {
+      "lat": 26.1740248,
+      "lon": -80.1576823,
+      "method": "nominatim-named-place",
+      "query": "Oakland Bark Park, Oakland Park, Florida",
+      "display_name": "Oakland Bark, Northwest 38th Street, Twin Lakes, Oakland Park, Broward County, Florida, 33309, United States",
+      "osm_type": "way",
+      "osm_id": 676437969,
+      "retrieved": "2026-10-28",
+      "note": "Named dog park on Northwest 38th Street, about 50 meters from the geocoded point for 971."
+    },
+    "2901 S.W. 52nd St., Dania Beach 33312": {
+      "lat": 26.057276,
+      "lon": -80.1791429,
+      "method": "nominatim-address",
+      "query": "2901 SW 52nd St, Dania Beach, FL 33312",
+      "display_name": "2901, Southwest 52nd Street, Avon Park, Dania Beach, Broward County, Florida, 33312, United States",
+      "osm_type": "way",
+      "osm_id": 10799338,
+      "retrieved": "2026-10-28"
+    },
+    "700 Lyons Rd., Coconut Creek 33063": {
+      "lat": 26.2380348,
+      "lon": -80.1854394,
+      "method": "nominatim-address",
+      "query": "Windmill Park, Coconut Creek, Florida",
+      "display_name": "Windmill Park, 700, Lakewood East, Coconut Creek, Broward County, Florida, United States",
+      "osm_type": "way",
+      "osm_id": 613628217,
+      "retrieved": "2026-10-28",
+      "note": "Park feature is named Windmill Park and carries house number 700 in Coconut Creek."
+    },
+    "1500 S.W. 83rd Ave., North Lauderdale 33068": {
+      "lat": 26.2077484,
+      "lon": -80.2390596,
+      "method": "nominatim-named-place",
+      "query": "Woodville Dog Park, North Lauderdale, Florida",
+      "display_name": "Woodville Dog Park, Southwest 83rd Avenue, North Lauderdale, Broward County, Florida, 33068, United States",
+      "osm_type": "way",
+      "osm_id": 91834899,
+      "retrieved": "2026-10-28",
+      "note": "Named dog park on Southwest 83rd Avenue. The house-number point for 1500 is on the same street."
+    }
+  },
+  "unpinned_city_parks": {
+    "900 Three Islands Blvd., Hallandale Beach 33009": "Nominatim's only hit at 900 Three Islands Boulevard was an FPL charging station, not the park."
+  }
+}
