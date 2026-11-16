@@ -503,7 +503,6 @@ DOCK_JS=r'''(function(){
   updateHint();
   revealCurrent();
 })();'''
-TOC_BOOT='<script>if(window.matchMedia("(min-width:960px)").matches){var d=document.currentScript.previousElementSibling;if(d&&d.tagName==="DETAILS")d.open=true;}</script>'
 MARK='''<svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><ellipse cx="10" cy="11" rx="2.2" ry="2.8"/><ellipse cx="15.2" cy="8.4" rx="2.2" ry="2.8"/><ellipse cx="20.2" cy="9" rx="2.2" ry="2.8"/><ellipse cx="23.6" cy="13.2" rx="2" ry="2.5"/><ellipse cx="16" cy="20.2" rx="6" ry="4.6"/></svg>'''
 
 class Site:
@@ -594,11 +593,6 @@ class Site:
         meta=f'<p class="meta"><span class="checked">Last checked: {esc(show)}</span>{topic_html}</p>'
         m=re.match(r'(?s)(.*?</h1>(?:<div class="inshort">.*?</div>)?)(.*)\Z', body)
         head,rest=(m.group(1),m.group(2)) if m else (body,'')
-        toc=''
-        if len(ids)>=3:
-            opened=' open' if len(ids)<=8 else ''
-            lis=''.join(f'<li><a href="#{n}">{esc(H.unescape(re.sub("<[^>]+>","",raw)))}</a></li>' for raw,n in zip(h2s,ids))
-            toc=f'<nav class="toc" aria-label="On this page"><details class="toc-details"{opened}><summary>On this page</summary><ul>{lis}</ul></details>{TOC_BOOT}</nav>'
         seq_label=None; seq=None
         for label,paths in s.sequences:
             if path in paths:
@@ -660,7 +654,6 @@ class Site:
         img=s.base+'/og.png'
         rel=''.join(f'<a href="{esc(u)}" rel="noopener">{esc(t)}</a>' for u,t in RELATED)
         if len(RELATED)==2: rel=rel.replace('</a><a ','</a> and <a ',1)
-        layout_cls='layout has-toc' if toc else 'layout'
         h=f'''<!doctype html><html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="{HEAD_STOPS[0]}"><title>{esc(title)}</title><meta name="description" content="{esc(desc)}"><link rel="canonical" href="{esc(canon)}">{ver}{robots}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta property="og:type" content="{og_type}"><meta property="og:site_name" content="{esc(s.brand)}"><meta property="og:title" content="{esc(title)}"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{esc(canon)}"><meta property="og:image" content="{esc(img)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{esc(s.brand)}"><meta property="og:locale" content="en_US">{article}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{esc(title)}"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{esc(img)}"><script type="application/ld+json">{ld}</script><style>{s.css}</style><script defer src="/_vercel/insights/script.js"></script></head><body>
 <a class="skip" href="#content">Skip to content</a>
 <div id="head-slot"><header id="site-header"><div class="shell">
@@ -669,7 +662,7 @@ class Site:
 <div class="search-wrap" id="site-search"><form class="sitesearch" role="search" action="/find/" method="get"><label for="q">Search this guide</label><input id="q" name="q" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="submit">Search</button></form><div id="search-results" class="search-results" hidden role="region" aria-live="polite" aria-label="Matching pages"></div></div>
 <nav id="site-nav" class="top" aria-label="Topics"><span class="vh">On a small screen, scroll this row sideways for more topics.</span>{nav}<span class="nav-fade nav-fade-left" aria-hidden="true"></span><span class="nav-fade nav-fade-right" aria-hidden="true"></span><span class="nav-hint" aria-hidden="true"></span></nav>
 </div></header></div>
-<main id="content" tabindex="-1"><div class="notice" role="note"><div class="shell"><p class="unofficial">{UNOFFICIAL}</p><p>{esc(DISCLAIMER)}</p></div></div><div class="shell">{crumbs_html}{meta}<article class="content" aria-labelledby="page-title"><div class="head-block">{head}</div><div class="{layout_cls}">{toc}<div class="rest">{rest}{pn}{readnext}</div></div></article></div></main>
+<main id="content" tabindex="-1"><div class="notice" role="note"><div class="shell"><p class="unofficial">{UNOFFICIAL}</p><p>{esc(DISCLAIMER)}</p></div></div><div class="shell">{crumbs_html}{meta}<article class="content" aria-labelledby="page-title"><div class="head-block">{head}</div><div class="layout"><div class="rest">{rest}{pn}{readnext}</div></div></article></div></main>
 <footer><div class="shell"><nav class="footnav" aria-label="About this guide"><a href="/find/">All pages</a><a href="/dog-beaches/">Dog beaches</a><a href="/dog-parks/">Off-leash dog parks</a><a href="/disclaimer/">Disclaimer</a></nav><p>{esc(s.footer)}</p><p>{esc(DISCLAIMER)}</p><p><strong>Related guides:</strong> {rel}.</p><p><a href="/disclaimer/">Disclaimer</a></p><p>Last checked: {esc(show)}.</p></div></footer>
 <script type="application/json" id="search-data">{s._search_json()}</script><script>{SEARCH_JS}</script><script>{FILTER_JS}</script><script>{DOCK_JS}</script><script>{MAP_JS}</script></body></html>'''
         for bad in ('\u2014','\u2013','&mdash;','&ndash;'):
@@ -948,19 +941,9 @@ article.content{min-width:0}
 .head-block>p,.rest>p{margin:0 0 var(--s16)}
 .inshort{background:#EEF4F1;border-left:6px solid #1D4F3E;border-radius:12px;padding:var(--s16) var(--s24);margin:0 0 var(--s24)}
 .inshort p{margin:0}
-.layout{display:flex;flex-direction:column;gap:var(--s24);min-width:0;margin-top:var(--s32)}
-.toc{order:-1}
-.rest{order:0;min-width:0}
+.layout{min-width:0;margin-top:var(--s32)}
+.rest{min-width:0}
 .rest>h2:first-child,.rest>h3:first-child{margin-top:0}
-@media (min-width:960px){
-.layout.has-toc{display:grid;grid-template-columns:minmax(0,1fr) 18rem;column-gap:var(--s32);align-items:start}
-.layout.has-toc .rest{grid-column:1;grid-row:1;order:0}
-.layout.has-toc .toc{grid-column:2;grid-row:1;order:0;position:sticky;top:var(--scroll-pad);max-height:calc(100vh - var(--scroll-pad) - var(--s16));overflow:auto}
-}
-.toc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:var(--s12) var(--s24) var(--s16);margin:0}
-.toc summary{min-height:44px;display:flex;align-items:center;font-weight:700;cursor:pointer}
-.toc ul{list-style:none;margin:0;padding:0 0 var(--s12)}
-.toc a{display:flex;align-items:center;min-height:44px;padding:var(--s12) 0}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:var(--s24);margin:0 0 var(--s16)}
 .card>:first-child{margin-top:0}
 .card>:last-child{margin-bottom:0}
@@ -1023,7 +1006,7 @@ footer p{max-width:66ch}
 @media (max-width:359px){body{font-size:1.0625rem}.shell{padding-left:var(--s12);padding-right:var(--s12)}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media (forced-colors:active){
-.card,.inshort,.notice,.jump,.toc,.pn a,.search-toggle,.grp>summary,.sitesearch button{border:1px solid CanvasText}
+.card,.inshort,.notice,.jump,.pn a,.search-toggle,.grp>summary,.sitesearch button{border:1px solid CanvasText}
 .sitesearch button,.search-toggle{background:ButtonFace;color:ButtonText}
 }
 '''
