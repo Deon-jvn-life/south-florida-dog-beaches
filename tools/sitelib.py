@@ -10,7 +10,6 @@ ISO="2026-10-26"
 DISCLAIMER=("For general information only. This independent site is not affiliated with any city, county or park authority. "
             "Rules, hours and access can change and may contain errors; always check the official park page and posted signs before you go. "
             "You are responsible for your dog and following local rules, and we accept no liability for decisions made using this site.")
-UNOFFICIAL="Unofficial and independent guide. Not a government website."
 HEADER_NOTE="Independent guide. Not a government website."
 RELATED=(
     ("https://us-passport-walkin-finder.vercel.app/","US Passport Walk-in Finder"),
@@ -130,6 +129,7 @@ def check_contrast():
         (VISITED,'#FFF8EC',4.5,'visited on note'),
         (VISITED,'#F6F1FA',4.5,'visited on conflict'),
         ('#3E3A34','#FFFFFF',4.5,'source text on white'),
+        ('#3E3A34',PAPER,4.5,'checked line on paper'),
         ('#143024','#E5F2EA',4.5,'checked text'),
         (INK,'#FDEBC8',4.5,'tag text'),
     ]
@@ -372,9 +372,12 @@ DOCK_JS=r'''(function(){
     var b=header.getBoundingClientRect().bottom;
     document.documentElement.style.setProperty("--header-bottom", Math.max(0, Math.round(b))+"px");
   }
+  function isCompact(){
+    try { return window.matchMedia("(max-width: 959px)").matches; } catch(err){ return false; }
+  }
   function setSearchOpen(open){
     if(!search||!toggle) return;
-    if(open && !document.body.classList.contains("is-docked")) open=false;
+    if(open && !isCompact() && !document.body.classList.contains("is-docked")) open=false;
     search.classList.toggle("is-open", open);
     toggle.setAttribute("aria-expanded", open?"true":"false");
     if(open) closeGroups();
@@ -431,7 +434,22 @@ DOCK_JS=r'''(function(){
     updateHint();
     placeHeader();
   }
+  function pinCompact(){
+    if(!isCompact()){
+      document.body.classList.remove("is-compact");
+      if(!docked) slot.style.height="";
+      return;
+    }
+    if(docked) undock();
+    document.body.classList.add("is-compact");
+    slot.style.height=header.offsetHeight+"px";
+    placeHeader();
+  }
   function onScroll(){
+    if(isCompact()){
+      pinCompact();
+      return;
+    }
     var y=window.scrollY||document.documentElement.scrollTop||0;
     var compact=pxVar("--header-compact","100");
     var line=fullH-compact;
@@ -587,11 +605,12 @@ class Site:
                 items_html.append(f'<li><a href="/#topic-{slug(topic)}">{esc(topic)}</a></li>')
             items_html.append(f'<li><span aria-current="page">{esc(plain)}</span></li>')
             crumbs_html='<nav class="crumbs" aria-label="Breadcrumb"><ol>'+''.join(items_html)+'</ol></nav>'
-        topic_html=''
+        topic_bit=''
         if topic and kind!='home':
-            topic_html=f'<a class="topic-chip" href="/#topic-{slug(topic)}"><span class="vh">Topic: </span>{esc(topic)}</a>'
-        meta=f'<p class="meta"><span class="checked">Last checked: {esc(show)}</span>{topic_html}</p>'
-        m=re.match(r'(?s)(.*?</h1>(?:<div class="inshort">.*?</div>)?)(.*)\Z', body)
+            topic_bit=f' <a href="/#topic-{slug(topic)}">Topic: {esc(topic)}</a>'
+        if '<h1' in body:
+            body=body.replace('</h1>', f'</h1><p class="checked-line">Last checked: {esc(show)}.{topic_bit}</p>', 1)
+        m=re.match(r'(?s)(.*?</h1>(?:<p class="checked-line">.*?</p>)?(?:<div class="inshort">.*?</div>)?)(.*)\Z', body)
         head,rest=(m.group(1),m.group(2)) if m else (body,'')
         seq_label=None; seq=None
         for label,paths in s.sequences:
@@ -657,12 +676,13 @@ class Site:
         h=f'''<!doctype html><html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="{HEAD_STOPS[0]}"><title>{esc(title)}</title><meta name="description" content="{esc(desc)}"><link rel="canonical" href="{esc(canon)}">{ver}{robots}<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta property="og:type" content="{og_type}"><meta property="og:site_name" content="{esc(s.brand)}"><meta property="og:title" content="{esc(title)}"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{esc(canon)}"><meta property="og:image" content="{esc(img)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{esc(s.brand)}"><meta property="og:locale" content="en_US">{article}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{esc(title)}"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{esc(img)}"><script type="application/ld+json">{ld}</script><style>{s.css}</style><script defer src="/_vercel/insights/script.js"></script></head><body>
 <a class="skip" href="#content">Skip to content</a>
 <div id="head-slot"><header id="site-header"><div class="shell">
-<div class="brand-block"><a class="brand" href="/">{MARK}<span class="name"><span class="name-main">{esc(s.brand)}</span><span class="name-compact">Dog beaches</span></span></a><p class="name-sub">{HEADER_NOTE}</p></div>
+<a class="brand" href="/">{MARK}<span class="name"><span class="name-main">{esc(s.brand)}</span><span class="name-compact">Dog beaches</span></span></a>
 <button type="button" class="search-toggle" aria-expanded="false" aria-controls="site-search"><svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="search-toggle-text">Search</span></button>
+<p class="name-sub">{HEADER_NOTE} <a href="/disclaimer/">Disclaimer</a></p>
 <div class="search-wrap" id="site-search"><form class="sitesearch" role="search" action="/find/" method="get"><label for="q">Search this guide</label><input id="q" name="q" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="submit">Search</button></form><div id="search-results" class="search-results" hidden role="region" aria-live="polite" aria-label="Matching pages"></div></div>
 <nav id="site-nav" class="top" aria-label="Topics"><span class="vh">On a small screen, scroll this row sideways for more topics.</span>{nav}<span class="nav-fade nav-fade-left" aria-hidden="true"></span><span class="nav-fade nav-fade-right" aria-hidden="true"></span><span class="nav-hint" aria-hidden="true"></span></nav>
 </div></header></div>
-<main id="content" tabindex="-1"><div class="notice" role="note"><div class="shell"><p class="unofficial">{UNOFFICIAL}</p><p>{esc(DISCLAIMER)}</p></div></div><div class="shell">{crumbs_html}{meta}<article class="content" aria-labelledby="page-title"><div class="head-block">{head}</div><div class="layout"><div class="rest">{rest}{pn}{readnext}</div></div></article></div></main>
+<main id="content" tabindex="-1"><div class="shell">{crumbs_html}<article class="content" aria-labelledby="page-title"><div class="head-block">{head}</div><div class="layout"><div class="rest">{rest}{pn}{readnext}</div></div></article></div></main>
 <footer><div class="shell"><nav class="footnav" aria-label="About this guide"><a href="/find/">All pages</a><a href="/dog-beaches/">Dog beaches</a><a href="/dog-parks/">Off-leash dog parks</a><a href="/disclaimer/">Disclaimer</a></nav><p>{esc(s.footer)}</p><p>{esc(DISCLAIMER)}</p><p><strong>Related guides:</strong> {rel}.</p><p><a href="/disclaimer/">Disclaimer</a></p><p>Last checked: {esc(show)}.</p></div></footer>
 <script type="application/json" id="search-data">{s._search_json()}</script><script>{SEARCH_JS}</script><script>{FILTER_JS}</script><script>{DOCK_JS}</script><script>{MAP_JS}</script></body></html>'''
         for bad in ('\u2014','\u2013','&mdash;','&ndash;'):
@@ -681,12 +701,16 @@ class Site:
         open(os.path.join(s.out,'robots.txt'),'w').write(''.join(f'User-agent: {b}\nAllow: /\n\n' for b in bots)+f'Sitemap: {s.base}/sitemap.xml\n')
         urls=''.join(f'<url><loc>{_abs(s.base,p)}</loc><lastmod>{mod}</lastmod></url>\n' for p,mod in sorted(s.indexable))
         open(os.path.join(s.out,'sitemap.xml'),'w').write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+urls+'</urlset>\n')
-        needles=(HEADER_NOTE,UNOFFICIAL,DISCLAIMER,'Last checked:','/_vercel/insights/script.js','scroll-margin-top:var(--scroll-pad)',FONT)
+        needles=(HEADER_NOTE,DISCLAIMER,'Last checked:','/_vercel/insights/script.js','scroll-margin-top:var(--scroll-pad)',FONT,'href="/disclaimer/"')
         gsc=s.verification.get('google-site-verification','')
         for path in s.pages:
             html=open(os.path.join(s.out,path),encoding='utf-8').read()
             for needle in needles:
                 if needle not in html: raise SystemExit(f'Missing {needle!r} on {path}')
+            if 'class="notice"' in html or 'On this page' in html:
+                raise SystemExit('Disclaimer bar or page contents box returned on '+path)
+            if html.find('Last checked:')<html.find('<h1'):
+                raise SystemExit('Last checked is above the H1 on '+path)
             if gsc and gsc not in html: raise SystemExit('Missing Google verification on '+path)
             if 'rel="canonical"' not in html: raise SystemExit('Missing canonical on '+path)
             if path=='404.html':
@@ -834,7 +858,7 @@ html{scroll-padding-top:0}
 body{margin:0;color:var(--ink);background:var(--paper);font-family:var(--font);font-size:1.125rem;line-height:1.6}
 h1,h2,h3,h4,h5,h6,button,input,textarea,select,summary{font-family:var(--font)}
 h1,h2,h3,h4,h5,h6{font-weight:700;line-height:1.25}
-h1{font-size:1.7rem;margin:0 0 var(--s16)}
+h1{font-size:1.7rem;margin:0 0 var(--s12)}
 h2{font-size:1.5rem;margin:var(--s40) 0 var(--s12)}
 h3{font-size:1.25rem;margin:var(--s24) 0 var(--s12)}
 main h1,main h2,main h3,main h4,main [id]{scroll-margin-top:var(--scroll-pad)}
@@ -847,14 +871,14 @@ img,svg{max-width:100%}
 #head-slot{min-width:0}
 #site-header{background:var(--head-bg);color:#fff;position:relative;z-index:30}
 #site-header a,#site-header a:visited{color:#fff}
-#site-header .shell{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand searchbtn" "search search" "nav nav";align-items:center;column-gap:var(--s16);row-gap:var(--s12);padding:var(--s24) var(--s16) var(--s16);position:relative}
-.brand-block{grid-area:brand;min-width:0}
-.brand{display:flex;align-items:center;gap:var(--s12);min-width:0;min-height:44px;color:#fff;text-decoration:none;font-weight:700}
+#site-header .shell{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand searchbtn" "sub sub" "search search" "nav nav";align-items:center;column-gap:var(--s16);row-gap:var(--s12);padding:var(--s24) var(--s16) var(--s16);position:relative}
+.brand{grid-area:brand;display:flex;align-items:center;gap:var(--s12);min-width:0;min-height:44px;color:#fff;text-decoration:none;font-weight:700}
 .mark{width:28px;height:28px;flex:none;display:block;fill:#fff}
 .name{display:flex;flex-direction:column;min-width:0}
 .name-main{font-size:1.125rem;line-height:1.3;font-weight:700}
 .name-compact{display:none;font-weight:700}
-.name-sub{margin:var(--s12) 0 0;font-size:.9375rem;font-weight:600;color:'''+SUB+''';line-height:1.35}
+.name-sub{grid-area:sub;margin:0;font-size:.9375rem;font-weight:600;color:'''+SUB+''';line-height:1.35}
+.name-sub a{color:#fff;font-weight:700;text-decoration:underline;text-underline-offset:.15em}
 .search-toggle{grid-area:searchbtn;display:none;align-items:center;justify-content:center;gap:var(--s12);min-height:44px;min-width:44px;height:44px;padding:0 var(--s12);font:inherit;font-weight:700;line-height:1.2;color:#fff;background:transparent;border:2px solid #fff;border-radius:12px;cursor:pointer;position:relative}
 .search-icon{width:1.15rem;height:1.15rem;display:block;flex:none}
 .search-wrap{grid-area:search;position:relative;min-width:0}
@@ -884,8 +908,22 @@ nav.top{grid-area:nav;display:flex;flex-wrap:nowrap;align-items:center;gap:var(-
 @media (max-width:959px){
 .grp[open] .glinks{position:fixed;z-index:46;top:var(--header-bottom);left:0;right:0;max-width:none;max-height:min(70vh,28rem);overflow:auto;background:#0A3A48;border:2px solid #fff;border-radius:0 0 12px 12px;padding:var(--s12);box-shadow:0 12px 24px rgba(0,0,0,.28)}
 }
+@media (max-width:959px){
+:root{--scroll-pad:12rem}
+#head-slot{min-height:11rem}
+#site-header{position:fixed;top:0;left:0;right:0;z-index:40;box-shadow:0 2px 12px rgba(0,0,0,.28)}
+#site-header .shell{grid-template-areas:"brand searchbtn" "sub sub" "nav nav";column-gap:var(--s12);row-gap:8px;padding:8px var(--s12)}
+.search-toggle{display:inline-flex;width:44px;padding:0}
+.search-toggle-text{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.name-main{font-size:1rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.name-sub{font-size:.875rem}
+.search-wrap{display:none;position:absolute;top:100%;left:0;right:0;z-index:36;background:var(--head-bg);padding:var(--s12) var(--s12) var(--s16);box-shadow:0 12px 24px rgba(0,0,0,.28)}
+.search-wrap.is-open{display:block}
+nav.top{padding-top:8px}
+main>.shell{padding-top:var(--s16)}
+}
 @media (min-width:960px){
-#site-header .shell{grid-template-areas:"brand searchbtn" "search search" "nav nav"}
+#site-header .shell{grid-template-areas:"brand searchbtn" "sub sub" "search search" "nav nav"}
 nav.top{overflow:visible;scroll-snap-type:none;border-top:1px solid rgba(255,255,255,.35)}
 .grp>summary{border:0;border-radius:12px;padding:0 var(--s12);background:transparent}
 .grp[open] .glinks{position:absolute;z-index:46;top:100%;left:0;background:#0A3A48;border:2px solid #fff;border-radius:12px;padding:var(--s12);box-shadow:0 8px 24px rgba(0,0,0,.28)}
@@ -932,10 +970,8 @@ main:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .crumbs li{display:flex;align-items:center;min-height:44px}
 .crumbs li+li::before{content:"/";margin:0 var(--s12);color:#3E3A34}
 .crumbs a{display:inline-flex;align-items:center;min-height:44px}
-.meta{display:flex;flex-wrap:wrap;gap:var(--s12);align-items:center;margin:0 0 var(--s24)}
-.checked,.topic-chip{display:inline-flex;align-items:center;min-height:44px;border-radius:12px;padding:var(--s12) var(--s16);font-size:1rem}
-.checked{background:#E5F2EA;color:#143024;border:1px solid #1D4F3E}
-.topic-chip{background:#fff;border:1px solid var(--line);font-weight:700;text-decoration:none}
+.checked-line{margin:0 0 var(--s16);color:#3E3A34;font-size:1rem;line-height:1.4}
+.checked-line a{font-weight:700}
 article.content{min-width:0}
 .head-block>p,.rest>p,.inshort p{max-width:66ch}
 .head-block>p,.rest>p{margin:0 0 var(--s16)}
@@ -944,6 +980,9 @@ article.content{min-width:0}
 .layout{min-width:0;margin-top:var(--s32)}
 .rest{min-width:0}
 .rest>h2:first-child,.rest>h3:first-child{margin-top:0}
+.place-photo{margin:0 0 var(--s24)}
+.place-photo img{display:block;width:100%;height:auto;border-radius:12px;background:#E7EFE9}
+.place-photo figcaption{margin:var(--s12) 0 0;max-width:66ch;color:var(--ink)}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:var(--s24);margin:0 0 var(--s16)}
 .card>:first-child{margin-top:0}
 .card>:last-child{margin-bottom:0}
