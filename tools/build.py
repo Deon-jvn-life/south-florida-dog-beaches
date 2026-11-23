@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build the South Florida dog beaches and off-leash dog parks guide into site/. Run: python3 tools/build.py"""
-import json,os,sys,urllib.parse
+import json,os,shutil,subprocess,sys,urllib.parse
 HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE); sys.path.insert(0,HERE)
 from sitelib import Site,CSS,D,DISCLAIMER,esc,a,clean_url,slug
 BASE="https://south-florida-dog-beaches.vercel.app"
@@ -8,6 +8,20 @@ BASE="https://south-florida-dog-beaches.vercel.app"
 VERIFY={"google-site-verification":"XA7XgB_UwrIRvQyNVsnWpSyTyaU6e3-v4g4RBw8RAVI","msvalidate.01":""}
 P=json.load(open(os.path.join(HERE,'places.json')))
 GEO=json.load(open(os.path.join(HERE,'geo.json')))
+PHOTOS=json.load(open(os.path.join(HERE,'photos.json')))
+PHOTO_LIC={"CC BY 2.0","CC BY 2.5","CC BY 3.0","CC BY 4.0","CC BY-SA 2.0","CC BY-SA 2.5","CC BY-SA 3.0","CC BY-SA 4.0","CC0 1.0","Public domain"}
+def photo_html(pid):
+    ph=PHOTOS.get(pid)
+    if not ph: return ''
+    if ph.get('license') not in PHOTO_LIC: raise SystemExit('Photo licence is not allowed for '+pid)
+    author=esc(ph['author'])
+    if ph.get('author_url'):
+        author=f'<a href="{esc(ph["author_url"])}" rel="noopener">{author}</a>'
+    return (f'<figure class="place-photo"><img src="/assets/photos/{esc(ph["file"])}" width="{int(ph["width"])}" height="{int(ph["height"])}" alt="{esc(ph["alt"])}" loading="lazy" decoding="async">'
+            f'<figcaption>{esc(ph["caption"])} Photo by {author}, '
+            f'<a href="{esc(ph["source_page"])}" rel="noopener">Wikimedia Commons</a>, '
+            f'<a href="{esc(ph["license_url"])}" rel="noopener">{esc(ph["license"])}</a>. '
+            f'Resized and saved as WebP.</figcaption></figure>')
 CITY_GEO=GEO['city_parks']
 CITY_UNPINNED=GEO['unpinned_city_parks']
 BCL="https://www.broward.org/parks/thingstodo/dogparks"
@@ -74,7 +88,7 @@ s.read_next.update({
  'find/index.html':['dog-beaches/index.html','dog-parks/index.html','are-dogs-allowed-on-beaches/index.html'],
  '404.html':['dog-beaches/index.html','dog-parks/index.html','find/index.html']})
 s.aliases={
- 'index.html':'home start dog beach park','dog-beaches/index.html':'beach beaches ocean shore permit hours',
+ 'index.html':'home start dog beach park dog friendly miami fort lauderdale','dog-beaches/index.html':'beach beaches ocean shore permit hours dog friendly miami fort lauderdale',
  'dog-parks/index.html':'off leash off-leash park parks','are-dogs-allowed-on-beaches/index.html':'allowed prohibited rules service animal',
  'license-and-rabies/index.html':'license rabies tag vaccination fee county','disclaimer/index.html':'disclaimer liability warranty',
  'find/index.html':'search index all pages find',
@@ -146,70 +160,85 @@ def table(ps, label='Places'):
             +''.join(row(p) for p in ps)+'</tbody></table></div>')
 B=[p for p in P if p['kind']=='beach']; K=[p for p in P if p['kind']=='park']; FL=[p for p in P if p['flag']]
 CONF='<div class="card conf"><strong>Conflicts and gaps found on '+D+'</strong><ul>'+''.join(f'<li><strong>{esc(p["name"])}:</strong> {esc(p["flag"])}</li>' for p in FL)+'</ul></div>'
-HOME_TOP=f'''<h1>South Florida dog beaches and off-leash dog parks</h1><p>{len(B)} dog beaches and {len(K)} off-leash dog parks in Miami-Dade, Broward and Palm Beach counties, each with days, hours (including seasonal hours), permits or fees, and rules from the official city or county page.</p>
+HOME_TOP=f'''<h1>Dog friendly beaches and dog parks in South Florida</h1><p>{len(B)} dog friendly beaches and {len(K)} off-leash dog parks in Miami-Dade, Broward and Palm Beach counties, each with days, hours (including seasonal hours), permits or fees, and rules from the official city or county page.</p>
 <div class="card note"><strong>Most South Florida beaches do not allow dogs.</strong> Use only the designated dog beaches below. {a("/are-dogs-allowed-on-beaches/","Read the rules")}.</div>
 <div class="card"><strong>License and rabies tags.</strong> Florida requires a rabies vaccination, and each county requires its own dog tag. Fees, where to buy the tag, and which of these places ask for proof are on the {a("/license-and-rabies/","license and rabies page")}.</div>'''
 HOME_BOTTOM=f'''<h2>Dog beaches</h2>{filters()}{table(B,"Dog beaches")}{map_block([place_entry(p) for p in B],"the dog beaches on this page")}
 <h2>Seasonal and day-limited at a glance</h2><ul><li>Miami Beach Bark Beach: Friday to Sunday only; 3 p.m. to 7 p.m. March to October, 1:30 p.m. to 5:30 p.m. November to February.</li><li>Boca Raton Bark Beach: 7 a.m. to 9 a.m., then 3 p.m. to sunset in standard time or 5 p.m. to sunset in daylight saving time; permit required.</li><li>Broward County Barkham and Woofing Waters: closed third week of January through second week of April.</li><li>West Kendall District Park dog park: temporarily closed starting Oct. 14, with a tentative reopening Friday, Oct. 30. The park page does not state the year.</li></ul>
 <h2>Off-leash dog parks</h2><p>See {a("/dog-parks/","all off-leash dog parks")} or browse by county: {", ".join(a(f"/counties/{k}/",v) for k,v in CO.items())}.</p>{CONF}'''
-s.page('dog-beaches/index.html',"South Florida dog beaches: days, hours and permits","7 designated dog beaches in Miami-Dade, Broward and Palm Beach, with days, seasonal hours, permits, fees and rules from official pages.",f'<h1>Dog beaches in South Florida</h1><p>{len(B)} designated dog beaches.</p>'+filters()+table(B,"Dog beaches")+map_block([place_entry(p) for p in B],"the dog beaches on this page")+CONF)
+s.page('dog-beaches/index.html',"South Florida dog friendly beaches: hours and permits","Seven dog friendly beaches, from the Miami dog beach at Haulover to Jupiter, with days, seasonal hours, permits, fees and rules from official pages.",f'<h1>Dog friendly beaches in South Florida</h1><p>{len(B)} designated dog friendly beaches.</p>'+filters()+table(B,"Dog beaches")+map_block([place_entry(p) for p in B],"the dog beaches on this page")+CONF)
 for _n,_x,_ph in CITYPARKS:
     if (_x in CITY_GEO)==(_x in CITY_UNPINNED):
         raise SystemExit('City park needs one geocode decision: '+_x)
 PARK_ENTRIES=[place_entry(p) for p in K]+[city_entry(n,x) for n,x,_ph in CITYPARKS]
-s.page('dog-parks/index.html',"Off-leash dog parks in South Florida: hours and fees","Off-leash dog parks run by Miami-Dade, Broward, Palm Beach counties and cities, with hours, maintenance closures, fees and rules.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+filters()+table(K,"Off-leash dog parks")+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap" tabindex="0" aria-label="Other city dog parks listed by Broward County"><table><thead><tr><th scope="col">Park</th><th scope="col">Address</th><th scope="col">Phone</th></tr></thead><tbody>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)} {directions_link(x,n)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</tbody></table></div>'+map_block(PARK_ENTRIES,"the dog parks on this page"))
+s.page('dog-parks/index.html',"Off-leash dog parks in Miami, Fort Lauderdale and Boca","Off-leash dog parks in Miami-Dade, Broward and Palm Beach, including Fort Lauderdale and Boca Raton, with hours, fees and rules from official pages.",f'<h1>Off-leash dog parks in South Florida</h1><p>{len(K)} off-leash parks with details below, plus other city dog parks listed by Broward County.</p>'+filters()+table(K,"Off-leash dog parks")+'<h2>Other city dog parks listed by Broward County</h2><p>Broward County says usage fees may apply and to contact the park before arriving'+f' <span class="src">[{a(BCL)}]</span>.</p><div class="wrap" tabindex="0" aria-label="Other city dog parks listed by Broward County"><table><thead><tr><th scope="col">Park</th><th scope="col">Address</th><th scope="col">Phone</th></tr></thead><tbody>'+''.join(f'<tr><td>{esc(n)}</td><td>{esc(x)} {directions_link(x,n)}</td><td>{p}</td></tr>' for n,x,p in CITYPARKS)+'</tbody></table></div>'+map_block(PARK_ENTRIES,"the dog parks on this page"))
 COUNTY_TITLE={
- 'miami-dade':"Dog beaches and off-leash parks in Miami-Dade County",
- 'broward':"Broward County dog beaches and off-leash dog parks",
- 'palm-beach':"Dog beaches and off-leash parks in Palm Beach County",
+ 'miami-dade':"Miami dog beach and off-leash dog parks in Miami-Dade",
+ 'broward':"Dog friendly beaches in Fort Lauderdale and Hollywood",
+ 'palm-beach':"Dog beaches in Palm Beach County: Boca Raton and Jupiter",
 }
 COUNTY_DESC={
- 'miami-dade':"Miami-Dade beaches and parks: North Beach Bark Beach, Haulover Dog Beach, Haulover Bark Park, West Kendall, Amelia Earhart, Greynolds, Tropical and Lago Mar.",
- 'broward':"Broward beaches and parks: Hollywood Dog Beach, Canine Beach, Wags and Waves, Barkham, Woofing Waters, Holiday Park, Riverside, Snyder and Canine Corner.",
- 'palm-beach':"Palm Beach County dog beaches and parks, including Jupiter Dog Beach, Boca Raton Bark Beach, Canine Cove, Lake Ida, Lake Woof and Pooch Pines, with hours.",
+ 'miami-dade':"Miami dog beach at Haulover and North Beach Bark Beach, plus dog parks at Haulover, West Kendall, Amelia Earhart, Greynolds, Tropical and Lago Mar.",
+ 'broward':"Dog friendly beaches in Fort Lauderdale, Hollywood and Pompano Beach, plus Broward off-leash dog parks, with hours, fees and rules from official pages.",
+ 'palm-beach':"Palm Beach County dog beaches at Boca Raton and Jupiter, plus Canine Cove, Lake Ida, Lake Woof and Pooch Pines, with hours and rules from county and city pages.",
+}
+COUNTY_H1={
+ 'miami-dade':"Miami dog beach and dog parks in Miami-Dade County",
+ 'broward':"Dog friendly beaches and dog parks in Broward County",
+ 'palm-beach':"Dog beaches and dog parks in Palm Beach County",
 }
 for k,v in CO.items():
     ps=[p for p in P if p['county']==v]
-    s.page(f'counties/{k}/index.html',COUNTY_TITLE[k],COUNTY_DESC[k],f'<h1>Dog beaches and dog parks in {v} County</h1><p>County dog license, rabies vaccination, and which of these places ask for a tag: {a("/license-and-rabies/","license and rabies rules")}.</p>'+filters()+f'<h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'],'Dog beaches')+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park'],'Off-leash dog parks')+map_block([place_entry(p) for p in ps],f'{v} County dog beaches and dog parks'))
+    s.page(f'counties/{k}/index.html',COUNTY_TITLE[k],COUNTY_DESC[k],f'<h1>{COUNTY_H1[k]}</h1><p>County dog license, rabies vaccination, and which of these places ask for a tag: {a("/license-and-rabies/","license and rabies rules")}.</p>'+filters()+f'<h2>Dog beaches</h2>'+table([p for p in ps if p['kind']=='beach'],'Dog beaches')+'<h2>Off-leash dog parks</h2>'+table([p for p in ps if p['kind']=='park'],'Off-leash dog parks')+map_block([place_entry(p) for p in ps],f'{v} County dog beaches and dog parks'))
 PLACE_TITLE={
- 'haulover-dog-beach':"Haulover Park Dog Beach (Miami-Dade County): hours and rules",
- 'pompano-wags-and-waves':"Wags and Waves Dog Beach, Pompano: hours and rules",
- 'boca-bark-beach':"Bark Beach at Spanish River Park: hours and permit",
- 'jupiter-dog-beach':"Jupiter Dog Beach: sunrise to sunset, free parking",
- 'haulover-bark-park':"Haulover Park Bark Park: sunrise to sunset, fee, rules",
- 'md-tropical':"Tropical Park dog park in Miami-Dade: hours and rules",
- 'md-lago-mar':"Lago Mar Park dog run in Miami-Dade: hours and rules",
- 'barkham-markham':"Barkham at Markham Park (Sunrise): hours and rules",
- 'woofing-waters':"Woofing Waters at Quiet Waters Park: hours and rules",
- 'ftl-holiday-park':"Holiday Park Dog Park (Fort Lauderdale): hours and rules",
- 'ftl-riverside':"Riverside Dog Park, Fort Lauderdale: hours and rules",
- 'ftl-snyder':"Bark Park at Snyder Park, Fort Lauderdale: hours and rules",
- 'pbc-canine-cove':"Canine Cove dog park: hours, rules and small dog area",
+ 'miami-beach-bark-beach':"Miami Beach dog beach: North Beach Bark Beach hours",
+ 'haulover-dog-beach':"Haulover dog beach in Miami: hours, parking and rules",
+ 'hollywood-dog-beach':"Hollywood dog beach hours, rules and parking in Broward",
+ 'fort-lauderdale-canine-beach':"Dog friendly beach Fort Lauderdale: Canine Beach hours",
+ 'pompano-wags-and-waves':"Pompano dog beach: Wags and Waves, what the city states",
+ 'boca-bark-beach':"Boca Raton dog beach: Bark Beach hours and permits",
+ 'jupiter-dog-beach':"Jupiter dog beach hours: sunrise to sunset, free parking",
+ 'haulover-bark-park':"Haulover dog park in Miami: sunrise to sunset, fee",
+ 'md-west-kendall':"West Kendall dog park in Miami: closure, hours, rules",
+ 'md-amelia-earhart':"Amelia Earhart dog park in Hialeah: parking and rules",
+ 'md-east-greynolds':"Greynolds dog park in Miami: parking, hours and rules",
+ 'md-tropical':"Tropical Park dog park in Miami: hours and park rules",
+ 'md-lago-mar':"Lago Mar dog run in Miami: hours, rules, what to bring",
+ 'barkham-markham':"Markham Park dog park: Barkham hours, fees and rules",
+ 'woofing-waters':"Quiet Waters dog park: Woofing Waters hours and fees",
+ 'ftl-holiday-park':"Holiday Park dog park, Fort Lauderdale: hours and rules",
+ 'ftl-riverside':"Riverside dog park in Fort Lauderdale: hours and rules",
+ 'ftl-snyder':"Snyder Park dog park in Fort Lauderdale: hours, rules",
+ 'pompano-canine-corner':"Pompano Beach dog park: Canine Corner hours and rules",
+ 'pbc-canine-cove':"Boca dog park at Canine Cove: hours and small dog area",
+ 'pbc-lake-ida':"Delray Beach dog park at Lake Ida: hours and rules",
+ 'pbc-lake-woof':"John Prince dog park in Lake Worth: hours and rules",
+ 'pbc-pooch-pines':"Okeeheelee dog park in West Palm Beach: hours, rules",
 }
 PLACE_DESC={
- 'miami-beach-bark-beach':"North Beach Bark Beach, Miami Beach: Friday to Sunday, 3 p.m. to 7 p.m. March to October and 1:30 p.m. to 5:30 p.m. November to February. No permit stated.",
- 'haulover-dog-beach':"Haulover Park Dog Beach: daily sunrise to sunset between lifeguard towers 2 and 3. Parking is $7 Monday to Thursday and $10 on weekends and holidays.",
- 'hollywood-dog-beach':"Dog Beach at Hollywood Beach: sunrise to sunset, no passes required, between Pershing and Custer Street lifeguard stands. Dogs need a current rabies tag.",
- 'fort-lauderdale-canine-beach':"Canine Beach in Fort Lauderdale: 6 a.m. to 9 a.m. and 5 p.m. to 7 p.m. North of Sunrise Boulevard on A1A. No permit stated on the official page.",
- 'pompano-wags-and-waves':"Wags and Waves Dog Beach at the SE 2nd Street Beach Access in Pompano Beach. Hours and fees were not stated on the official pages we could read.",
- 'boca-bark-beach':"Bark Beach at Spanish River Park: 7 days a week, 7 a.m. to 9 a.m., then 3 p.m. to sunset in standard time or 5 p.m. to sunset in daylight time. Permit required.",
- 'jupiter-dog-beach':"Jupiter Dog Beach, Palm Beach County: sunrise to sunset, no permit stated, and parking is free. Leash dogs from the car to the beach.",
- 'haulover-bark-park':"Haulover Park Bark Park: sunrise to sunset, seven days a week. Parking is $5.47 per vehicle with the dog in the car. Separate small and large dog areas.",
- 'md-west-kendall':"West Kendall District Park dog park is temporarily closed starting Oct. 14. Tentative reopening is Friday, Oct. 30. The park page states no year and no fee.",
- 'md-amelia-earhart':"Amelia Earhart Park bark park admission is free. Parking is free Monday to Thursday and $8 Friday to Sunday and holidays. Bark park hours are not stated.",
- 'md-east-greynolds':"East Greynolds Park dog park lists no separate entry fee. Parking is free Monday to Thursday and $10 Friday to Sunday. Bark park hours are not stated.",
+ 'miami-beach-bark-beach':"North Beach Bark Beach, the Miami Beach dog beach: Friday to Sunday, 3 p.m. to 7 p.m. March to October and 1:30 p.m. to 5:30 p.m. November to February.",
+ 'haulover-dog-beach':"Haulover dog beach in Miami: daily sunrise to sunset between lifeguard towers 2 and 3. Parking is $7 Monday to Thursday and $10 on weekends and holidays.",
+ 'hollywood-dog-beach':"Hollywood dog beach: sunrise to sunset, no passes required, between the Pershing and Custer Street lifeguard stands. Dogs need a current rabies tag.",
+ 'fort-lauderdale-canine-beach':"The dog friendly beach in Fort Lauderdale, Canine Beach: 6 a.m. to 9 a.m. and 5 p.m. to 7 p.m. North of Sunrise Boulevard on A1A. No permit is stated.",
+ 'pompano-wags-and-waves':"Pompano dog beach, Wags and Waves, at the SE 2nd Street Beach Access. Hours and fees were not stated on the official city pages we could read.",
+ 'boca-bark-beach':"Boca Raton dog beach at Spanish River Park: 7 a.m. to 9 a.m., then 3 p.m. to sunset in standard time or 5 p.m. to sunset in daylight time. Permit required.",
+ 'jupiter-dog-beach':"Jupiter dog beach in Palm Beach County: sunrise to sunset, no permit stated, and parking is free. Leash dogs from the car to the beach.",
+ 'haulover-bark-park':"Haulover dog park in Miami: sunrise to sunset, seven days a week. Parking is $5.47 per vehicle with the dog in the car. Separate small and large dog areas.",
+ 'md-west-kendall':"West Kendall dog park in Miami is temporarily closed starting Oct. 14. Tentative reopening is Friday, Oct. 30. The park page states no year and no fee.",
+ 'md-amelia-earhart':"Amelia Earhart dog park in Hialeah: admission is free. Parking is free Monday to Thursday and $8 Friday to Sunday and holidays. Bark park hours are not stated.",
+ 'md-east-greynolds':"Greynolds dog park at East Greynolds Park lists no separate entry fee. Parking is free Monday to Thursday and $10 Friday to Sunday. Hours are not stated.",
  'md-tropical':"Tropical Park dog park at 7900 SW 40 St., Miami. Hours and fees are not stated on the county dog parks page. County dog park rules apply.",
- 'md-lago-mar':"Lago Mar Park dog run, 8165 SW 162 Ave., Miami. Hours and fees are not stated. No water, bag dispensers or waste baskets; bring your own.",
- 'barkham-markham':"Barkham at Markham Park, Sunrise: closed Tuesday mornings until 10 a.m. Annual membership $25 or $5 daily, up to three dogs. Small and large dog areas.",
- 'woofing-waters':"Woofing Waters at Quiet Waters Park: 8 a.m. to 6 p.m. daily. Annual fee $25 or $5 daily. Closed third week of January through second week of April.",
- 'ftl-holiday-park':"Holiday Park Dog Park in Fort Lauderdale: 7:30 a.m. to 7 p.m., closed Monday and Wednesday 8 a.m. to 11 a.m. for maintenance. Up to three dogs per person.",
- 'ftl-riverside':"Riverside Neighborhood Dog Park in Fort Lauderdale: 6 a.m. to 9 p.m. Fee not stated. Rules include a license, three dogs max and no puppies under four months.",
- 'ftl-snyder':"Snyder Park Bark Park, Fort Lauderdale: 7 a.m. to 7 p.m. Closed Tuesday and Thursday 8 to 11 a.m. for maintenance, and on Christmas Day and New Year's Day.",
- 'pompano-canine-corner':"Canine Corner Dog Park in Pompano Beach: daily 6:30 a.m. to 8:30 p.m., closed Tuesdays. Members only. Separate areas under and over 25 pounds.",
- 'pbc-canine-cove':"Canine Cove at Burt Aaronson South County Regional Park: sunrise to sunset, closed Wednesday 12 p.m. to 3 p.m. for maintenance. No fee stated.",
- 'pbc-lake-ida':"Dog Park at Lake Ida West Park, 1455 Lake Ida Road, Delray Beach: sunrise to sunset, closed Thursday 12 p.m. to 3 p.m. No fee stated on the county page.",
- 'pbc-lake-woof':"Lake Woof at John Prince Memorial Park, 2520 Lake Worth Road: sunrise to sunset, closed Thursday 12 p.m. to 3 p.m. No entry fee stated.",
- 'pbc-pooch-pines':"Pooch Pines at Okeeheelee Park, 7715 Forest Hill Boulevard: sunrise to sunset, closed Wednesday 12 p.m. to 3 p.m. No fee stated on the county page.",
+ 'md-lago-mar':"Lago Mar dog run in Miami, 8165 SW 162 Ave. Hours and fees are not stated. There is no water, bag dispenser or waste basket, so bring your own bags.",
+ 'barkham-markham':"Markham Park dog park, Barkham in Sunrise: closed Tuesday mornings until 10 a.m. Annual membership is $25 or $5 daily, up to three dogs. Small and large areas.",
+ 'woofing-waters':"Quiet Waters dog park, Woofing Waters: 8 a.m. to 6 p.m. daily. Annual fee $25 or $5 daily. Closed third week of January through second week of April.",
+ 'ftl-holiday-park':"Holiday Park dog park in Fort Lauderdale: 7:30 a.m. to 7 p.m., closed Monday and Wednesday 8 a.m. to 11 a.m. for maintenance. Up to three dogs per person.",
+ 'ftl-riverside':"Riverside dog park in Fort Lauderdale: 6 a.m. to 9 p.m. The fee is not stated. Rules include a license, three dogs max, and no puppies under four months.",
+ 'ftl-snyder':"Snyder Park dog park in Fort Lauderdale: 7 a.m. to 7 p.m. Closed Tuesday and Thursday 8 to 11 a.m. for maintenance, and on Christmas Day and New Year's Day.",
+ 'pompano-canine-corner':"Pompano Beach dog park, Canine Corner: daily 6:30 a.m. to 8:30 p.m., closed Tuesdays. Members only. Separate areas for dogs under and over 25 pounds.",
+ 'pbc-canine-cove':"Canine Cove dog park near Boca Raton, at Burt Aaronson South County Regional Park: sunrise to sunset, closed Wednesday 12 p.m. to 3 p.m. No fee is stated.",
+ 'pbc-lake-ida':"Delray Beach dog park at Lake Ida West Park, 1455 Lake Ida Road: sunrise to sunset, closed Thursday 12 p.m. to 3 p.m. No fee is stated on the county page.",
+ 'pbc-lake-woof':"John Prince dog park, Lake Woof, at 2520 Lake Worth Road: sunrise to sunset, closed Thursday 12 p.m. to 3 p.m. for maintenance. No entry fee is stated.",
+ 'pbc-pooch-pines':"Okeeheelee dog park, Pooch Pines, at 7715 Forest Hill Boulevard: sunrise to sunset, closed Wednesday 12 p.m. to 3 p.m. No fee is stated on the county page.",
 }
 for p in P:
     rl=''.join(f'<li>{esc(x)}</li>' for x in p['rules']) or '<li>Not stated on the official page we could read.</li>'
@@ -217,7 +246,7 @@ for p in P:
     ph=f'<p><strong>Phone:</strong> {esc(p["phone"])}</p>' if p['phone'] else ''
     entry=place_entry(p)
     located=map_block([entry], p['name'], solo=True) or '<p class="map-note">This place is not on a map here because a confident point was not found.</p>'
-    b=f'''<h1>{esc(p["name"])}</h1><div class="card"><p><strong>Type:</strong> {"Dog beach" if p["kind"]=="beach" else "Off-leash dog park"}, {p["county"]} County</p><p><strong>Location:</strong> {esc(p["address"])} {directions_link(p["address"], p["name"])}</p><p><strong>Days and hours:</strong> {esc(p["hours"])}</p><p><strong>Permit, fee, parking:</strong> {esc(p["fee"])}</p>{ph}<p>{srcs(p)}</p></div>{f}{located}<h2>Rules</h2><ul>{rl}</ul><p>{a("/","All dog beaches and parks")}. {a("/license-and-rabies/","License and rabies tag rules")}.</p>'''
+    b=f'''<h1>{esc(p["name"])}</h1><div class="card"><p><strong>Type:</strong> {"Dog beach" if p["kind"]=="beach" else "Off-leash dog park"}, {p["county"]} County</p><p><strong>Location:</strong> {esc(p["address"])} {directions_link(p["address"], p["name"])}</p><p><strong>Days and hours:</strong> {esc(p["hours"])}</p><p><strong>Permit, fee, parking:</strong> {esc(p["fee"])}</p>{ph}<p>{srcs(p)}</p></div>{f}{photo_html(p["id"])}{located}<h2>Rules</h2><ul>{rl}</ul><p>{a("/","All dog beaches and parks")}. {a("/license-and-rabies/","License and rabies tag rules")}.</p>'''
     title=PLACE_TITLE.get(p['id'], f"{p['name']}: hours, rules, permit")
     desc=PLACE_DESC[p['id']]
     hub=('dog-beaches/index.html','Dog beaches') if p['kind']=='beach' else ('dog-parks/index.html','Off-leash dog parks')
@@ -248,8 +277,8 @@ JUP2=a("https://jupiter.fl.us/437/Dogs-on-the-Beach","Jupiter dogs on the beach"
 JUP3=a("https://discover.pbc.gov/parks/Pages/Jupiter-Dog-Beach.aspx","county Jupiter Dog Beach page")
 BOCA=a("https://www.myboca.us/953/Bark-Beach-at-Spanish-River-Park","Boca Raton Bark Beach")
 BOCA2=a("https://www.myboca.us/950/Annual-Permits","Boca Raton annual permits")
-LIC_TITLE="Dog license and rabies tag rules by South Florida county"
-LIC_DESC="Miami-Dade, Broward and Palm Beach dog license fees, rabies proof, where to get a tag, and which listed parks and beaches require it."
+LIC_TITLE="Dog license and rabies tags in Miami, Broward, Palm Beach"
+LIC_DESC="Miami-Dade, Broward and Palm Beach dog license fees, rabies proof, where to get a tag, and which dog beaches and dog parks ask to see it."
 lic=f'''<h1>Dog license and rabies tag rules for South Florida</h1>
 <p>Florida law requires a rabies vaccination for dogs. Miami-Dade, Broward and Palm Beach each add their own license or registration tag. A park can also set its own proof rule. This page separates those three layers. Fees below are the county prices published for a county tag or a county clinic, not a private veterinarian's price.</p>
 <div class="card conf"><strong>Official pages that do not agree</strong>
@@ -354,7 +383,7 @@ lic=f'''<h1>Dog license and rabies tag rules for South Florida</h1>
 </ul>
 <p>Hours, beach permits, and the rest of the park rules are on each {a("/","place page")}.</p>'''
 s.page('license-and-rabies/index.html',LIC_TITLE,LIC_DESC,lic,checked=("26 Oct 2026","2026-10-26"))
-FAQ_Q="Are dogs allowed on most South Florida beaches?"
+FAQ_Q="Are dogs allowed on Fort Lauderdale and Miami beaches?"
 FAQ_A="No. On most public beaches in Miami-Dade, Broward and Palm Beach, dogs (other than service animals) are not allowed. Use a designated dog beach."
 b=f'''<h1>{esc(FAQ_Q)}</h1><div class="card"><p><strong>No.</strong> {esc(FAQ_A[4:])}</p></div>
 <ul><li>Miami Beach: dogs are prohibited from city beaches except the designated Bark Beach at 80 to 81 Streets <span class="src">[{a(P[0]["src"][0])}]</span>.</li>
@@ -362,7 +391,7 @@ b=f'''<h1>{esc(FAQ_Q)}</h1><div class="card"><p><strong>No.</strong> {esc(FAQ_A[
 <li>Fort Lauderdale: pets are not allowed on beaches or in any body of water unless permitted by law, except at Canine Beach <span class="src">[{a("https://www.parks.fortlauderdale.gov/parks/dog-friendly-places")}]</span>.</li>
 <li>Jupiter calls its beach "one of the few remaining dog-friendly beaches in the state of Florida" <span class="src">[{a("https://jupiter.fl.us/437/Dogs-on-the-Beach")}]</span>.</li></ul>
 <p>Where dogs are allowed, rules usually include a leash to and from the sand, a current rabies tag or vaccination proof, a limit of two or three dogs per person, and picking up waste. See the {a("/dog-beaches/","dog beach list")}. County license fees, where to get the tag, and which places ask for proof are on the {a("/license-and-rabies/","license and rabies page")}.</p>'''
-s.page('are-dogs-allowed-on-beaches/index.html',"Are dogs allowed on South Florida beaches? The rules","Short answer with official sources: dogs are not allowed on most Miami-Dade, Broward and Palm Beach beaches; here is where they are.",b,faq=[(FAQ_Q,FAQ_A)])
+s.page('are-dogs-allowed-on-beaches/index.html',FAQ_Q,"Dogs are not allowed on most Miami, Fort Lauderdale and Palm Beach beaches. Official pages name the dog friendly beaches and the service-animal exception.",b,faq=[(FAQ_Q,FAQ_A)])
 b=f'''<h1>Disclaimer</h1>
 <p>{esc(DISCLAIMER)}</p>
 <h2>Accuracy</h2>
@@ -379,9 +408,9 @@ b=f'''<h1>Disclaimer</h1>
 <p>Always check the official park page and the signs posted at the park before you go.</p>
 <h2>Contact and corrections</h2>
 <p>This site does not publish an email address or a contact form. If an entry looks wrong, compare it with the official page linked on that entry and with the signs posted at the park.</p>'''
-s.page('disclaimer/index.html',"Disclaimer: South Florida dog beaches and parks guide","General information only. No warranty and no liability. This independent site is not a city, county or park authority. Check the official park page.",b)
-FIND_TITLE="Find a page on South Florida dog beaches and parks"
-FIND_DESC="Search or browse every page in this independent guide to dog beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach."
+s.page('disclaimer/index.html',"Disclaimer: South Florida dog friendly beaches guide","General information only. No warranty and no liability. This independent guide is not a city, county or park site. Check the official park page before you go.",b)
+FIND_TITLE="Find a Miami dog beach or a Fort Lauderdale dog beach"
+FIND_DESC="Search this guide to dog friendly beaches and off-leash dog parks in Miami, Fort Lauderdale, Hollywood, Boca Raton, Jupiter and the rest of South Florida."
 s.summaries['find/index.html']=FIND_DESC
 def jump(path, label, keywords=None):
     blurb=s.summaries.get(path,'')
@@ -410,12 +439,12 @@ TASKS=START+[
 way=('<h2>Start here</h2><p>Open these pages in this order when you plan a visit.</p><ol class="steps">'+''.join(jump(p,l) for p,l in START)+'</ol>'
      '<h2>Top tasks</h2><p>The pages people open most often.</p><ul class="tasks">'+''.join(jump(p,l) for p,l in TASKS)+'</ul>')
 topics='<h2>All topics</h2><p>Every page on this guide, grouped by subject.</p>'+topic_blocks()
-s.page('index.html',"South Florida dog beaches and parks: hours and rules","Dog beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach with seasonal hours, days, permits, fees and rules from official pages.",HOME_TOP+way+HOME_BOTTOM+topics,kind='home')
+s.page('index.html',"Dog friendly beaches: Miami and Fort Lauderdale, FL","Dog friendly beaches in Fort Lauderdale, Miami, Hollywood, Boca Raton and Jupiter, plus off-leash dog parks. Hours, permits and rules come from official pages.",HOME_TOP+way+HOME_BOTTOM+topics,kind='home')
 hubs=('''<li><a href="/">Home</a></li><li><a href="/dog-beaches/">Dog beaches</a></li><li><a href="/dog-parks/">Off-leash dog parks</a></li>'''
       '<li><a href="/counties/miami-dade/">Miami-Dade</a></li><li><a href="/counties/broward/">Broward</a></li><li><a href="/counties/palm-beach/">Palm Beach</a></li>'
       '<li><a href="/are-dogs-allowed-on-beaches/">Are dogs allowed on beaches?</a></li><li><a href="/license-and-rabies/">License and rabies</a></li>'
       '<li><a href="/find/">All pages</a></li><li><a href="/disclaimer/">Disclaimer</a></li>')
-s.page('404.html',"Page not found on the South Florida dog beach guide","That page is not in this South Florida dog beach and off-leash dog park guide. Try the home page, dog beaches, dog parks or a county page.",f'<h1>Page not found</h1><p>That page is not on this guide.</p><ul>{hubs}</ul>',listed=False)
+s.page('404.html',"Page not found: South Florida dog friendly beaches","That page is not in this guide to dog friendly beaches and off-leash dog parks in Miami-Dade, Broward and Palm Beach. Try home or the beach list.",f'<h1>Page not found</h1><p>That page is not on this guide.</p><ul>{hubs}</ul>',listed=False)
 s.finish()
 pinned=sum(1 for p in P if place_entry(p)['lat'] is not None)
 city_pins=sum(1 for n,x,_ph in CITYPARKS if city_entry(n,x)['lat'] is not None)
@@ -444,3 +473,42 @@ for path in ('index.html','dog-beaches/index.html','dog-parks/index.html','count
         raise SystemExit('Missing OpenStreetMap attribution on '+path)
 if not os.path.isfile(os.path.join(ROOT,'site','assets','leaflet','leaflet.js')):
     raise SystemExit('Leaflet was not copied into site/')
+photo_out=os.path.join(ROOT,'site','assets','photos')
+os.makedirs(photo_out, exist_ok=True)
+known=set()
+for pid,ph in PHOTOS.items():
+    if pid not in {p['id'] for p in P}:
+        raise SystemExit('Photo is not tied to a place: '+pid)
+    src=os.path.join(HERE,'photos',ph['file'])
+    if not os.path.isfile(src):
+        raise SystemExit('Missing photo file '+ph['file'])
+    if ph['file'] in known:
+        raise SystemExit('Duplicate photo file '+ph['file'])
+    known.add(ph['file'])
+    wh=subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height','-of','csv=p=0',src],text=True).strip()
+    if wh!=f'{int(ph["width"])},{int(ph["height"])}':
+        raise SystemExit(f'Photo size {wh} does not match metadata for {ph["file"]}')
+    raw=open(src,'rb').read(12)
+    if raw[:4]!=b'RIFF' or raw[8:12]!=b'WEBP':
+        raise SystemExit('Photo is not a WebP file: '+ph['file'])
+    shutil.copy(src, os.path.join(photo_out, ph['file']))
+disk=set(os.listdir(os.path.join(HERE,'photos')))
+if disk!=known:
+    raise SystemExit('Photo files and photos.json do not match: '+', '.join(sorted(disk^known)))
+for path in s.pages:
+    html=open(os.path.join(ROOT,'site',path),encoding='utf-8').read()
+    if 'src="http' in html or "src='http" in html:
+        raise SystemExit('Hotlinked image on '+path)
+    if not path.startswith('places/'):
+        if 'class="place-photo"' in html:
+            raise SystemExit('Unexpected photo on '+path)
+        continue
+    pid=path.split('/')[1]
+    ph=PHOTOS.get(pid)
+    if not ph:
+        if 'class="place-photo"' in html:
+            raise SystemExit('Unexpected photo on '+path)
+        continue
+    for needle in (f'/assets/photos/{ph["file"]}', f'width="{int(ph["width"])}"', f'height="{int(ph["height"])}"', ph['alt'], ph['license'], ph['source_page'], 'Resized and saved as WebP'):
+        if needle not in html:
+            raise SystemExit(f'Missing photo detail {needle!r} on {path}')
